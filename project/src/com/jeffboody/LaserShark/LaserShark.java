@@ -82,6 +82,7 @@ public class LaserShark extends Activity
 
 	static
 	{
+		System.loadLibrary("texgz");
 		System.loadLibrary("a3d");
 		System.loadLibrary("LaserShark");
 	}
