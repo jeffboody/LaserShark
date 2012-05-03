@@ -26,6 +26,8 @@
 #include <stdlib.h>
 #include <assert.h>
 #include "a3d/a3d_GL.h"
+#include "texgz/texgz_tex.h"
+#include <GLES/glext.h>
 
 #define LOG_TAG "LaserShark"
 #include "a3d/a3d_log.h"
@@ -34,26 +36,111 @@
 * private                                                  *
 ***********************************************************/
 
+#define SCREEN_W 800.0f
+#define SCREEN_H 480.0f
+
+static GLfloat VERTEX[] =
+{
+	    0.0f,     0.0f, -1.0f,   // 0
+	    0.0f, SCREEN_H, -1.0f,   // 1
+	SCREEN_W, SCREEN_H, -1.0f,   // 2
+	SCREEN_W,     0.0f, -1.0f,   // 3
+};
+
+static GLfloat COORDS[] =
+{
+	0.0f, 0.0f,   // 0
+	0.0f, 1.0f,   // 1
+	1.0f, 1.0f,   // 2
+	1.0f, 0.0f,   // 3
+};
+
 typedef struct
 {
-	int stub;
+	GLuint       texid;
+	texgz_tex_t* buffer;   // may be NULL
 } lzs_renderer_t;
 
 lzs_renderer_t* lzs_renderer_new(const char* s)
 {
-	return NULL;
+	assert(s);
+	LOGD("debug");
+
+	lzs_renderer_t* self = (lzs_renderer_t*) malloc(sizeof(lzs_renderer_t));
+	if(self == NULL)
+	{
+		LOGE("malloc failed");
+		return NULL;
+	}
+
+	self->buffer = NULL;
+	glGenTextures(1, &self->texid);
+	glEnableClientState(GL_VERTEX_ARRAY);
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+	return self;
 }
 
 void lzs_renderer_delete(lzs_renderer_t** _self)
 {
+	assert(_self);
+
+	lzs_renderer_t* self = *_self;
+	if(self)
+	{
+		LOGD("debug");
+		glBindTexture(GL_TEXTURE_EXTERNAL_OES, 0);
+		glDeleteTextures(1, &self->texid);
+		texgz_tex_delete(&self->buffer);
+		free(self);
+		*_self = NULL;
+	}
 }
 
 void lzs_renderer_resize(lzs_renderer_t* self, int w, int h)
 {
+	assert(self);
+	LOGI("%ix%i", w, h);
+
+	glViewport(0, 0, w, h);
+
+	// reallocate the glReadPixels buffer
+	GLint format = GL_RGB;
+	GLint type   = GL_UNSIGNED_SHORT_5_6_5;
+	glGetIntegerv(GL_IMPLEMENTATION_COLOR_READ_FORMAT_OES, &format);
+	glGetIntegerv(GL_IMPLEMENTATION_COLOR_READ_TYPE_OES, &type);
+	texgz_tex_delete(&self->buffer);
+	self->buffer = texgz_tex_new(w, h, w, h, type, format, NULL);
 }
 
 void lzs_renderer_draw(lzs_renderer_t* self)
 {
+	assert(self);
+	LOGD("debug");
+
+	// render camera
+	glMatrixMode(GL_PROJECTION);
+	glLoadIdentity();
+	glOrthof(0.0f, SCREEN_W, SCREEN_H, 0.0f, 0.0f, 2.0f);
+	glMatrixMode(GL_MODELVIEW);
+	glLoadIdentity();
+	glEnable(GL_TEXTURE_EXTERNAL_OES);
+	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+	glBindTexture(GL_TEXTURE_EXTERNAL_OES, self->texid);
+	glVertexPointer(3, GL_FLOAT, 0, VERTEX);
+	glTexCoordPointer(2, GL_FLOAT, 0, COORDS);
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+	glDisable(GL_TEXTURE_EXTERNAL_OES);
+
+	// take snapshot
+	if(self->buffer)
+	{
+		texgz_tex_t* b = self->buffer;
+		glReadPixels(0, 0, b->width, b->height, b->format, b->type, (void*) b->pixels);
+	}
+
+	A3D_GL_GETERROR();
 }
 
 static lzs_renderer_t* lzs_renderer = NULL;
@@ -123,4 +210,16 @@ JNIEXPORT int JNICALL Java_com_jeffboody_a3d_A3DNativeRenderer_NativeClientVersi
 	assert(env);
 	LOGD("debug");
 	return 1;
+}
+
+JNIEXPORT int JNICALL Java_com_jeffboody_LaserShark_LaserSharkRenderer_NativeGetTexture(JNIEnv* env)
+{
+	assert(env);
+	LOGD("debug");
+
+	if(lzs_renderer)
+	{
+		return lzs_renderer->texid;
+	}
+	return 0;
 }

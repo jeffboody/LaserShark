@@ -29,15 +29,14 @@ import android.os.Bundle;
 import android.view.Window;
 import android.view.WindowManager;
 import com.jeffboody.a3d.A3DSurfaceView;
-import com.jeffboody.a3d.A3DNativeRenderer;
 import com.jeffboody.a3d.A3DResource;
 
 public class LaserShark extends Activity
 {
 	private static final String TAG = "LaserShark";
 
-	private A3DNativeRenderer Renderer;
-	private A3DSurfaceView    Surface;
+	private LaserSharkRenderer Renderer;
+	private A3DSurfaceView     Surface;
 
 	@Override
 	public void onCreate(Bundle savedInstanceState)
@@ -52,7 +51,7 @@ public class LaserShark extends Activity
 		getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
 		                     WindowManager.LayoutParams.FLAG_FULLSCREEN);
 
-		Renderer = new A3DNativeRenderer(this);
+		Renderer = new LaserSharkRenderer(this);
 		Surface  = new A3DSurfaceView(Renderer, r, this);
 		setContentView(Surface);
 	}
