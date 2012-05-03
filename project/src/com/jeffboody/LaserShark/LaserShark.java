@@ -26,6 +26,8 @@ package com.jeffboody.LaserShark;
 import android.util.Log;
 import android.app.Activity;
 import android.os.Bundle;
+import android.os.PowerManager;
+import android.content.Context;
 import android.view.Window;
 import android.view.WindowManager;
 import android.view.MotionEvent;
@@ -38,6 +40,9 @@ public class LaserShark extends Activity
 
 	private LaserSharkRenderer Renderer;
 	private A3DSurfaceView     Surface;
+
+	// keep screen awake
+	private PowerManager.WakeLock mWakeLock;
 
 	// touch events
 	private final int INIT_STATE = 0;
@@ -69,6 +74,9 @@ public class LaserShark extends Activity
 		Renderer = new LaserSharkRenderer(this);
 		Surface  = new A3DSurfaceView(Renderer, r, this);
 		setContentView(Surface);
+
+		PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+		mWakeLock = pm.newWakeLock(PowerManager.SCREEN_DIM_WAKE_LOCK, "RoboJoystick");
 	}
 
 	@Override
@@ -76,11 +84,13 @@ public class LaserShark extends Activity
 	{
 		super.onResume();
 		Surface.ResumeRenderer();
+		mWakeLock.acquire();
 	}
 
 	@Override
 	protected void onPause()
 	{
+		mWakeLock.release();
 		Surface.PauseRenderer();
 		super.onPause();
 	}
