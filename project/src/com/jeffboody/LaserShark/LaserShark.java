@@ -28,6 +28,7 @@ import android.app.Activity;
 import android.os.Bundle;
 import android.view.Window;
 import android.view.WindowManager;
+import android.view.MotionEvent;
 import com.jeffboody.a3d.A3DSurfaceView;
 import com.jeffboody.a3d.A3DResource;
 
@@ -37,6 +38,20 @@ public class LaserShark extends Activity
 
 	private LaserSharkRenderer Renderer;
 	private A3DSurfaceView     Surface;
+
+	// touch events
+	private final int INIT_STATE = 0;
+	private final int ONE_STATE  = 1;
+	private final int TWO_STATE  = 2;
+	private int   State = INIT_STATE;
+	private float X1    = 0.0F;
+	private float Y1    = 0.0F;
+	private float X2    = 0.0F;
+	private float Y2    = 0.0F;
+
+	// Native interface
+	private native void NativeTouchOne(float x1, float y1);
+	private native void NativeTouchTwo(float x1, float y1, float x2, float y2);
 
 	@Override
 	public void onCreate(Bundle savedInstanceState)
@@ -77,6 +92,66 @@ public class LaserShark extends Activity
 		Surface = null;
 		Renderer = null;
         super.onDestroy();
+	}
+
+	@Override
+	public boolean onTouchEvent(MotionEvent event)
+	{
+		try
+		{
+			int action = event.getAction();
+			int count  = event.getPointerCount();
+
+			if(action == MotionEvent.ACTION_UP)
+			{
+				// Do nothing
+				State = INIT_STATE;
+			}
+			else if(count == 1)
+			{
+				if(action == MotionEvent.ACTION_DOWN)
+				{
+					X1 = event.getX();
+					Y1 = event.getY();
+					State = ONE_STATE;
+				}
+				else if((action == MotionEvent.ACTION_MOVE) && (State == ONE_STATE))
+				{
+					X1 = event.getX();
+					Y1 = event.getY();
+					NativeTouchOne(X1, Y1);
+				}
+			}
+			else if(count == 2)
+			{
+				if((action == MotionEvent.ACTION_DOWN) ||
+				   (action == MotionEvent.ACTION_POINTER_1_DOWN) ||
+				   (action == MotionEvent.ACTION_POINTER_2_DOWN))
+				{
+					X1 = event.getX(event.findPointerIndex(0));
+					Y1 = event.getY(event.findPointerIndex(0));
+					X2 = event.getX(event.findPointerIndex(1));
+					Y2 = event.getY(event.findPointerIndex(1));
+					State = TWO_STATE;
+				}
+				else if((action == MotionEvent.ACTION_MOVE) && (State == TWO_STATE))
+				{
+					X1 = event.getX(event.findPointerIndex(0));
+					Y1 = event.getY(event.findPointerIndex(0));
+					X2 = event.getX(event.findPointerIndex(1));
+					Y2 = event.getY(event.findPointerIndex(1));
+					NativeTouchTwo(X1, Y1, X2, Y2);
+				}
+			}
+			// limit touch events to 30Hz
+			Thread.sleep((long) (1000.0F/30.0F));
+		}
+		catch(Exception e)
+		{
+			// ignore
+		}
+
+		return true;
 	}
 
 	static

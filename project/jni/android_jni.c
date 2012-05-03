@@ -223,3 +223,15 @@ JNIEXPORT int JNICALL Java_com_jeffboody_LaserShark_LaserSharkRenderer_NativeGet
 	}
 	return 0;
 }
+
+JNIEXPORT void JNICALL Java_com_jeffboody_LaserShark_LaserShark_NativeTouchOne(JNIEnv* env, jobject obj, jfloat x1, jfloat y1)
+{
+	assert(env);
+	LOGI("debug x1=%f, y1=%f", x1, y1);
+}
+
+JNIEXPORT void JNICALL Java_com_jeffboody_LaserShark_LaserShark_NativeTouchTwo(JNIEnv* env, jobject obj, jfloat x1, jfloat y1, jfloat x2, jfloat y2)
+{
+	assert(env);
+	LOGI("debug x1=%f, y1=%f, x2=%f, y2=%f", x1, y1, x2, y2);
+}
