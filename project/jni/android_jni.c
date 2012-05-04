@@ -41,7 +41,17 @@
 #define SCREEN_H 480.0f
 
 #define BALL_RADIUS  128.0f
-#define LASER_RADIUS 32.0f
+#define LASER_RADIUS 64.0f
+
+// 8 + 4*4 + 2*8 + 1*8 + 0.5*4 = 50
+static float MASK[] =
+{
+	0.5f / 50.0f, 1.0f / 50.0f, 2.0f / 50.0f, 1.0f / 50.0f, 0.5f / 50.0f,
+	1.0f / 50.0f, 2.0f / 50.0f, 4.0f / 50.0f, 2.0f / 50.0f, 1.0f / 50.0f,
+	2.0f / 50.0f, 4.0f / 50.0f, 8.0f / 50.0f, 4.0f / 50.0f, 2.0f / 50.0f,
+	1.0f / 50.0f, 2.0f / 50.0f, 4.0f / 50.0f, 2.0f / 50.0f, 1.0f / 50.0f,
+	0.5f / 50.0f, 1.0f / 50.0f, 2.0f / 50.0f, 1.0f / 50.0f, 0.5f / 50.0f,
+};
 
 static GLfloat BOX[] =
 {
@@ -72,9 +82,10 @@ typedef struct
 	GLuint       texid;
 	float        ball_x;
 	float        ball_y;
+	texgz_tex_t* ball_buffer;
 	float        laser_x;
 	float        laser_y;
-	texgz_tex_t* buffer;   // may be NULL
+	texgz_tex_t* laser_buffer;
 } lzs_renderer_t;
 
 lzs_renderer_t* lzs_renderer_new(const char* s)
@@ -89,18 +100,41 @@ lzs_renderer_t* lzs_renderer_new(const char* s)
 		return NULL;
 	}
 
-	self->ball_x       = 400.0f;
-	self->ball_y       = 240.0f;
-	self->laser_x      = 400.0f;
-	self->laser_y      = 240.0f;
+	self->ball_x  = 400.0f;
+	self->ball_y  = 240.0f;
+	self->laser_x = 400.0f;
+	self->laser_y = 240.0f;
 
-	self->buffer = NULL;
+	// allocate the buffer(s)
+	GLint bsize  = 2 * ((int) BALL_RADIUS);
+	GLint lsize  = 2 * ((int) LASER_RADIUS);
+	GLint format = TEXGZ_BGRA;
+	GLint type   = GL_UNSIGNED_BYTE;
+	self->ball_buffer  = texgz_tex_new(bsize, bsize, bsize, bsize, type, format, NULL);
+	if(self->ball_buffer == NULL)
+	{
+		goto fail_ball;
+	}
+	self->laser_buffer = texgz_tex_new(lsize, lsize, lsize, lsize, type, format, NULL);
+	if(self->laser_buffer == NULL)
+	{
+		goto fail_laser;
+	}
+
 	glGenTextures(1, &self->texid);
 	glEnableClientState(GL_VERTEX_ARRAY);
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 	glDisable(GL_DEPTH_TEST);
 
+	// success
 	return self;
+
+	// failure
+	fail_laser:
+		texgz_tex_delete(&self->ball_buffer);
+	fail_ball:
+		free(self);
+	return NULL;
 }
 
 void lzs_renderer_delete(lzs_renderer_t** _self)
@@ -111,9 +145,10 @@ void lzs_renderer_delete(lzs_renderer_t** _self)
 	if(self)
 	{
 		LOGD("debug");
+		texgz_tex_delete(&self->laser_buffer);
+		texgz_tex_delete(&self->ball_buffer);
 		glBindTexture(GL_TEXTURE_EXTERNAL_OES, 0);
 		glDeleteTextures(1, &self->texid);
-		texgz_tex_delete(&self->buffer);
 		free(self);
 		*_self = NULL;
 	}
@@ -125,14 +160,6 @@ void lzs_renderer_resize(lzs_renderer_t* self, int w, int h)
 	LOGI("%ix%i", w, h);
 
 	glViewport(0, 0, w, h);
-
-	// reallocate the glReadPixels buffer
-	GLint format = GL_RGB;
-	GLint type   = GL_UNSIGNED_SHORT_5_6_5;
-	glGetIntegerv(GL_IMPLEMENTATION_COLOR_READ_FORMAT_OES, &format);
-	glGetIntegerv(GL_IMPLEMENTATION_COLOR_READ_TYPE_OES, &type);
-	texgz_tex_delete(&self->buffer);
-	self->buffer = texgz_tex_new(w, h, w, h, type, format, NULL);
 }
 
 void lzs_renderer_drawbox(float top, float left, float bottom, float right, float r, float g, float b, int filled)
@@ -183,6 +210,93 @@ void lzs_renderer_draw(lzs_renderer_t* self)
 	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
 	glDisable(GL_TEXTURE_EXTERNAL_OES);
 
+	// capture buffers
+	GLint format = TEXGZ_BGRA;
+	GLint type   = GL_UNSIGNED_BYTE;
+	glGetIntegerv(GL_IMPLEMENTATION_COLOR_READ_FORMAT_OES, &format);
+	glGetIntegerv(GL_IMPLEMENTATION_COLOR_READ_TYPE_OES, &type);
+	if((format == TEXGZ_BGRA) && (type == GL_UNSIGNED_BYTE))
+	{
+		LOGD("readpixels format=0x%X, type=0x%X", format, type);
+
+		texgz_tex_t* b = self->ball_buffer;
+		glReadPixels(self->ball_x - BALL_RADIUS, (SCREEN_H - self->ball_y - 1) - BALL_RADIUS,
+		             b->width, b->height, b->format, b->type, (void*) b->pixels);
+		//if(texgz_tex_export(b, "/sdcard/laser-shark/ball.texgz") == 0)
+		//{
+		//	LOGE("texgz_tex_export failed");
+		//}
+		texgz_tex_t* l = self->laser_buffer;
+		glReadPixels(self->laser_x - LASER_RADIUS, (SCREEN_H - self->laser_y - 1) - LASER_RADIUS,
+		             l->width, l->height, l->format, l->type, (void*) l->pixels);
+		//if(texgz_tex_export(l, "/sdcard/laser-shark/laser.texgz") == 0)
+		//{
+		//	LOGE("texgz_tex_export failed");
+		//}
+
+		// convolve the mask with the laser buffer
+		int x;
+		int y;
+		int i;
+		int j;
+		int w = l->width;
+		GLint format = TEXGZ_LUMINANCE;
+		GLint type   = GL_UNSIGNED_BYTE;
+		texgz_tex_t* s = texgz_tex_convertcopy(l, type, format);
+		texgz_tex_t* m = texgz_tex_new(w, w, w, w, type, format, NULL);
+		for(x = 2; x < l->width - 3; ++x)
+		{
+			for(y = 2; y < l->width - 3; ++y)
+			{
+				for(i = 0; i < 5; ++i)
+				{
+					for(j = 0; j < 5; ++j)
+					{
+						int row = y + i - 2;
+						int col = x + j - 2;
+						m->pixels[w*y + x] += s->pixels[w*row + col] * MASK[5*i + j];
+					}
+				}
+			}
+		}
+		//if(texgz_tex_export(s, "/sdcard/laser-shark/laser-gray.texgz") == 0)
+		//{
+		//	LOGE("texgz_tex_export failed");
+		//}
+		//if(texgz_tex_export(m, "/sdcard/laser-shark/laser-peak.texgz") == 0)
+		//{
+		//	LOGE("texgz_tex_export failed");
+		//}
+		int   peak_x = 0;
+		int   peak_y = 0;
+		float peak   = 0.0f;
+		for(x = 2; x < l->width - 3; ++x)
+		{
+			for(y = 2; y < l->width - 3; ++y)
+			{
+				if(m->pixels[w*y + x] > peak)
+				{
+					peak_x = x;
+					peak_y = y;
+					peak   = m->pixels[w*y + x];
+				}
+			}
+		}
+		// rotate and flip due to read pixels
+		LOGI("peak_x=%i, peak_y=%i, peak=%f", peak_x, peak_y, peak);
+		if(peak >= 128.0f)
+		{
+			self->laser_x += (float) peak_x - (float) l->width / 2.0f;
+			self->laser_y -= (float) peak_y - (float) l->height / 2.0f;
+		}
+		texgz_tex_delete(&s);
+		texgz_tex_delete(&m);
+	}
+	else
+	{
+		LOGE("unsupported format=0x%X, type=0x%X", format, type);
+	}
+
 	// draw laser search box
 	{
 		float x = self->laser_x;
@@ -192,19 +306,12 @@ void lzs_renderer_draw(lzs_renderer_t* self)
 	}
 
 	// draw ball search box
-	{
-		float x = self->ball_x;
-		float y = self->ball_y;
-		float r = BALL_RADIUS;
-		lzs_renderer_drawbox(y - r, x - r, y + r, x + r, 0.0f, 1.0f, 0.0f, 0);
-	}
-
-	// take snapshot
-	if(self->buffer)
-	{
-		texgz_tex_t* b = self->buffer;
-		glReadPixels(0, 0, b->width, b->height, b->format, b->type, (void*) b->pixels);
-	}
+	//{
+	//	float x = self->ball_x;
+	//	float y = self->ball_y;
+	//	float r = BALL_RADIUS;
+	//	lzs_renderer_drawbox(y - r, x - r, y + r, x + r, 0.0f, 1.0f, 0.0f, 0);
+	//}
 
 	A3D_GL_GETERROR();
 }
@@ -260,7 +367,7 @@ void lzs_renderer_searchball(lzs_renderer_t* self, float x1, float y1, float x2,
 	float dy = y2 - y1;
 	float x  = x1 + dx / 2.0f;
 	float y  = y1 + dy / 2.0f;
-	float r = BALL_RADIUS;
+	float r  = BALL_RADIUS;
 
 	// limit search region to screen
 	if(x - r < 0.0f)
@@ -280,8 +387,8 @@ void lzs_renderer_searchball(lzs_renderer_t* self, float x1, float y1, float x2,
 		y = SCREEN_H - r - 1;
 	}
 
-	self->ball_x      = x;
-	self->ball_y      = y;
+	self->ball_x = x;
+	self->ball_y = y;
 }
 
 static lzs_renderer_t* lzs_renderer = NULL;
