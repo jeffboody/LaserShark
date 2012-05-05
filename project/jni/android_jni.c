@@ -43,8 +43,23 @@
 #define BALL_RADIUS  128.0f
 #define LASER_RADIUS 64.0f
 
+// tangent derivitives
+static float SOBEL_X[] =
+{
+	-1.0f / 4.0f, 0.0f, 1.0f / 4.0f,
+	-2.0f / 4.0f, 0.0f, 2.0f / 4.0f,
+	-1.0f / 4.0f, 0.0f, 1.0f / 4.0f,
+};
+
+static float SOBEL_Y[] =
+{
+	 1.0f / 4.0f,  2.0f / 4.0f,  1.0f / 4.0f,
+	        0.0f,         0.0f,         0.0f,
+	-1.0f / 4.0f, -2.0f / 4.0f, -1.0f / 4.0f,
+};
+
 // 8 + 4*4 + 2*8 + 1*8 + 0.5*4 = 50
-static float MASK[] =
+static float PEAK[] =
 {
 	0.5f / 50.0f, 1.0f / 50.0f, 2.0f / 50.0f, 1.0f / 50.0f, 0.5f / 50.0f,
 	1.0f / 50.0f, 2.0f / 50.0f, 4.0f / 50.0f, 2.0f / 50.0f, 1.0f / 50.0f,
@@ -219,78 +234,63 @@ void lzs_renderer_draw(lzs_renderer_t* self)
 	{
 		LOGD("readpixels format=0x%X, type=0x%X", format, type);
 
+		// TODO - check for texgz errors
+
 		texgz_tex_t* b = self->ball_buffer;
 		glReadPixels(self->ball_x - BALL_RADIUS, (SCREEN_H - self->ball_y - 1) - BALL_RADIUS,
 		             b->width, b->height, b->format, b->type, (void*) b->pixels);
-		//if(texgz_tex_export(b, "/sdcard/laser-shark/ball.texgz") == 0)
-		//{
-		//	LOGE("texgz_tex_export failed");
-		//}
 		texgz_tex_t* l = self->laser_buffer;
 		glReadPixels(self->laser_x - LASER_RADIUS, (SCREEN_H - self->laser_y - 1) - LASER_RADIUS,
 		             l->width, l->height, l->format, l->type, (void*) l->pixels);
-		//if(texgz_tex_export(l, "/sdcard/laser-shark/laser.texgz") == 0)
-		//{
-		//	LOGE("texgz_tex_export failed");
-		//}
 
-		// convolve the mask with the laser buffer
-		int x;
-		int y;
-		int i;
-		int j;
-		int w = l->width;
-		GLint format = TEXGZ_LUMINANCE;
-		GLint type   = GL_UNSIGNED_BYTE;
-		texgz_tex_t* s = texgz_tex_convertcopy(l, type, format);
-		texgz_tex_t* m = texgz_tex_new(w, w, w, w, type, format, NULL);
-		for(x = 2; x < l->width - 3; ++x)
+		// process ball
+		texgz_tex_t* bg  = texgz_tex_convertcopy(b, TEXGZ_FLOAT, TEXGZ_LUMINANCE);
+		texgz_tex_t* bsx = texgz_tex_convolvecopy(bg, SOBEL_X, 3, 1);
+		texgz_tex_t* bsy = texgz_tex_convolvecopy(bg, SOBEL_Y, 3, 1);
+		//texgz_tex_export(b,   "/sdcard/laser-shark/ball.texgz");
+		//texgz_tex_export(bg,  "/sdcard/laser-shark/ball-gray.texgz");
+		//texgz_tex_export(bsx, "/sdcard/laser-shark/ball-sx.texgz");
+		//texgz_tex_export(bsy, "/sdcard/laser-shark/ball-sy.texgz");
+
+		// process laser
+		texgz_tex_t* lg = texgz_tex_convertcopy(l, TEXGZ_FLOAT, TEXGZ_LUMINANCE);
+		texgz_tex_t* lp = texgz_tex_convolvecopy(lg, PEAK, 5, 0);
+		//texgz_tex_export(l, "/sdcard/laser-shark/laser.texgz");
+		//texgz_tex_export(lg,  "/sdcard/laser-shark/laser-gray.texgz");
+		//texgz_tex_export(lp,  "/sdcard/laser-shark/laser-peak.texgz");
+
+		// compute laser peak
+		int    x;
+		int    y;
+		int    peak_x  = 0;
+		int    peak_y  = 0;
+		float  peak    = 0.0f;
+		float* fpixels = (float*) lp->pixels;
+		for(x = 0; x < lp->width; ++x)
 		{
-			for(y = 2; y < l->width - 3; ++y)
+			for(y = 0; y < lp->height; ++y)
 			{
-				for(i = 0; i < 5; ++i)
-				{
-					for(j = 0; j < 5; ++j)
-					{
-						int row = y + i - 2;
-						int col = x + j - 2;
-						m->pixels[w*y + x] += s->pixels[w*row + col] * MASK[5*i + j];
-					}
-				}
-			}
-		}
-		//if(texgz_tex_export(s, "/sdcard/laser-shark/laser-gray.texgz") == 0)
-		//{
-		//	LOGE("texgz_tex_export failed");
-		//}
-		//if(texgz_tex_export(m, "/sdcard/laser-shark/laser-peak.texgz") == 0)
-		//{
-		//	LOGE("texgz_tex_export failed");
-		//}
-		int   peak_x = 0;
-		int   peak_y = 0;
-		float peak   = 0.0f;
-		for(x = 2; x < l->width - 3; ++x)
-		{
-			for(y = 2; y < l->width - 3; ++y)
-			{
-				if(m->pixels[w*y + x] > peak)
+				if(fpixels[lp->width*y + x] > peak)
 				{
 					peak_x = x;
 					peak_y = y;
-					peak   = m->pixels[w*y + x];
+					peak   = fpixels[lp->width*y + x];
 				}
 			}
 		}
-		// rotate and flip due to read pixels
-		LOGI("peak_x=%i, peak_y=%i, peak=%f", peak_x, peak_y, peak);
-		if(peak >= 128.0f)
+
+		// move laser center to match peak
+		if(peak >= 0.5f)
 		{
 			self->laser_x += (float) peak_x - (float) l->width / 2.0f;
 			self->laser_y -= (float) peak_y - (float) l->height / 2.0f;
 		}
-		texgz_tex_delete(&s);
-		texgz_tex_delete(&m);
+
+		texgz_tex_delete(&bg);
+		texgz_tex_delete(&bsx);
+		texgz_tex_delete(&bsy);
+		texgz_tex_delete(&lg);
+		texgz_tex_delete(&lp);
 	}
 	else
 	{
@@ -306,12 +306,12 @@ void lzs_renderer_draw(lzs_renderer_t* self)
 	}
 
 	// draw ball search box
-	//{
-	//	float x = self->ball_x;
-	//	float y = self->ball_y;
-	//	float r = BALL_RADIUS;
-	//	lzs_renderer_drawbox(y - r, x - r, y + r, x + r, 0.0f, 1.0f, 0.0f, 0);
-	//}
+	{
+		float x = self->ball_x;
+		float y = self->ball_y;
+		float r = BALL_RADIUS;
+		lzs_renderer_drawbox(y - r, x - r, y + r, x + r, 0.0f, 1.0f, 0.0f, 0);
+	}
 
 	A3D_GL_GETERROR();
 }
