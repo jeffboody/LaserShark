@@ -26,8 +26,10 @@ package com.jeffboody.LaserShark;
 import android.util.Log;
 import android.app.Activity;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.PowerManager;
 import android.content.Context;
+import android.content.Intent;
 import android.view.Window;
 import android.view.WindowManager;
 import android.hardware.SensorManager;
@@ -37,10 +39,19 @@ import android.hardware.SensorEventListener;
 import android.view.MotionEvent;
 import com.jeffboody.a3d.A3DSurfaceView;
 import com.jeffboody.a3d.A3DResource;
+import orbotix.robot.app.StartupActivity;
+import orbotix.robot.base.RGBLEDOutputCommand;
+import orbotix.robot.base.Robot;
+import orbotix.robot.base.RobotControl;
+import orbotix.robot.base.RobotProvider;
 
 public class LaserShark extends Activity implements SensorEventListener
 {
 	private static final String TAG = "LaserShark";
+
+	// ID for launching the StartupActivity for result to connect to the robot
+	private final static int STARTUP_ACTIVITY = 0;
+	private Robot mRobot;
 
 	private LaserSharkRenderer Renderer;
 	private A3DSurfaceView     Surface;
@@ -67,6 +78,68 @@ public class LaserShark extends Activity implements SensorEventListener
 	private native void NativeTouchOne(float x1, float y1);
 	private native void NativeTouchTwo(float x1, float y1, float x2, float y2);
 	private native void NativeGyroEvent(float v0, float v1, float v2, float dt);
+
+	private void blink(final boolean lit)
+	{
+		if(mRobot != null)
+		{
+			// if not lit, send command to show blue light, or else, send command to show no light
+			if(lit)
+			{
+				RGBLEDOutputCommand.sendCommand(mRobot, 0, 0, 0);
+			}
+			else
+			{
+				RGBLEDOutputCommand.sendCommand(mRobot, 0, 0, 255);
+			}
+
+			// send delayed message on a handler to run blink again
+			final Handler handler = new Handler();
+			handler.postDelayed(new Runnable() { public void run() { blink(!lit); } }, 1000);
+		}
+	}
+
+	@Override
+	protected void onStart()
+	{
+		super.onStart();
+
+		// launch the StartupActivity to connect to the robot
+		Intent i = new Intent(this, StartupActivity.class);
+		startActivityForResult(i, STARTUP_ACTIVITY);
+	}
+
+
+	@Override
+	protected void onStop()
+	{
+		super.onStop();
+
+		mRobot = null;
+
+		// disconnect Robot
+		RobotProvider.getDefaultProvider().removeAllControls();
+	}
+
+	@Override
+	protected void onActivityResult(int requestCode, int resultCode, Intent data)
+	{
+		super.onActivityResult(requestCode, resultCode, data);
+
+		if(requestCode == STARTUP_ACTIVITY && resultCode == RESULT_OK)
+		{
+
+			// get the connected Robot
+			final String robot_id = data.getStringExtra(StartupActivity.EXTRA_ROBOT_ID);
+			if(robot_id != null && !robot_id.equals(""))
+			{
+				mRobot = RobotProvider.getDefaultProvider().findRobot(robot_id);
+			}
+
+			// start blinking
+			blink(false);
+		}
+	}
 
 	@Override
 	public void onCreate(Bundle savedInstanceState)
@@ -129,7 +202,7 @@ public class LaserShark extends Activity implements SensorEventListener
 		Surface.StopRenderer();
 		Surface = null;
 		Renderer = null;
-        super.onDestroy();
+		super.onDestroy();
 	}
 
 	@Override
