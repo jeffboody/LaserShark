@@ -40,14 +40,16 @@ public class LaserSharkRenderer extends A3DNativeRenderer
 	private Camera         mCamera;
 	private int            mTex;
 	private SurfaceTexture mSurfaceTexture;
+	private LaserShark     mLaserShark;
 
 	// Native interface
 	private native int NativeGetTexture();
 
 	// Renderer implementation
-	public LaserSharkRenderer(Context context)
+	public LaserSharkRenderer(Context context, LaserShark laser_shark)
 	{
 		super(context);
+		mLaserShark = laser_shark;
 	}
 
 	@Override

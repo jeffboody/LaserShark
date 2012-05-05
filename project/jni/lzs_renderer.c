@@ -385,7 +385,7 @@ void lzs_renderer_searchball(lzs_renderer_t* self, float x1, float y1, float x2,
 void lzs_renderer_phonegyro(lzs_renderer_t* self, float v1, float v2, float v3, float dt)
 {
 	assert(self);
-	LOGI("v1=%f, v2=%f, v3=%f, dt=%f", v1, v2, v3, dt);
+	LOGD("v1=%f, v2=%f, v3=%f, dt=%f", v1, v2, v3, dt);
 
 	// v1 is positive rotation about y
 	// v2 is negative rotation about x
@@ -396,4 +396,10 @@ void lzs_renderer_phonegyro(lzs_renderer_t* self, float v1, float v2, float v3, 
 	//a3d_mat4f_rotate(&self->phone_gyro, 0, ax, 1.0f, 0.0f, 0.0f);
 	//a3d_mat4f_rotate(&self->phone_gyro, 0, ay, 0.0f, 1.0f, 0.0f);
 	//a3d_mat4f_rotate(&self->phone_gyro, 0, az, 0.0f, 0.0f, 1.0f);
+}
+
+void lzs_renderer_spheroorientation(lzs_renderer_t* self, float pitch, float roll, float yaw)
+{
+	assert(self);
+	LOGI("pitch=%f, roll=%f, yaw=%f", pitch, roll, yaw);
 }

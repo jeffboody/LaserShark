@@ -52,5 +52,6 @@ void            lzs_renderer_draw(lzs_renderer_t* self);
 void            lzs_renderer_searchlaser(lzs_renderer_t* self, float x, float y);
 void            lzs_renderer_searchball(lzs_renderer_t* self, float x1, float y1, float x2, float y2);
 void            lzs_renderer_phonegyro(lzs_renderer_t* self, float v1, float v2, float v3, float dt);
+void            lzs_renderer_spheroorientation(lzs_renderer_t* self, float pitch, float roll, float yaw);
 
 #endif

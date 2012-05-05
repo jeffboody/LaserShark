@@ -148,3 +148,14 @@ JNIEXPORT void JNICALL Java_com_jeffboody_LaserShark_LaserShark_NativeGyroEvent(
 		lzs_renderer_phonegyro(lzs_renderer, v1, v2, v3, dt);
 	}
 }
+
+JNIEXPORT void JNICALL Java_com_jeffboody_LaserShark_LaserShark_NativeSpheroOrientation(JNIEnv* env, jobject obj, jfloat pitch, jfloat roll, jfloat yaw)
+{
+	assert(env);
+	LOGD("debug pitch=%f, roll=%f, roll=%f", pitch, roll, yaw);
+
+	if(lzs_renderer)
+	{
+		lzs_renderer_spheroorientation(lzs_renderer, pitch, roll, yaw);
+	}
+}
