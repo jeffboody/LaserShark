@@ -25,6 +25,7 @@
 #define lzs_renderer_H
 
 #include "a3d/a3d_GL.h"
+#include "a3d/math/a3d_mat4f.h"
 #include "texgz/texgz_tex.h"
 
 /***********************************************************
@@ -40,6 +41,7 @@ typedef struct
 	float        laser_x;
 	float        laser_y;
 	texgz_tex_t* laser_buffer;
+	a3d_mat4f_t  phone_gyro;
 } lzs_renderer_t;
 
 lzs_renderer_t* lzs_renderer_new(const char* s);
@@ -49,5 +51,6 @@ void            lzs_renderer_drawbox(float top, float left, float bottom, float 
 void            lzs_renderer_draw(lzs_renderer_t* self);
 void            lzs_renderer_searchlaser(lzs_renderer_t* self, float x, float y);
 void            lzs_renderer_searchball(lzs_renderer_t* self, float x1, float y1, float x2, float y2);
+void            lzs_renderer_phonegyro(lzs_renderer_t* self, float v1, float v2, float v3, float dt);
 
 #endif

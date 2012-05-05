@@ -137,3 +137,14 @@ JNIEXPORT void JNICALL Java_com_jeffboody_LaserShark_LaserShark_NativeTouchTwo(J
 		lzs_renderer_searchball(lzs_renderer, x1, y1, x2, y2);
 	}
 }
+
+JNIEXPORT void JNICALL Java_com_jeffboody_LaserShark_LaserShark_NativeGyroEvent(JNIEnv* env, jobject obj, jfloat v1, jfloat v2, jfloat v3, jfloat dt)
+{
+	assert(env);
+	LOGD("debug v1=%f, v2=%f, v3=%f, dt=%f", v1, v2, v3, dt);
+
+	if(lzs_renderer)
+	{
+		lzs_renderer_phonegyro(lzs_renderer, v1, v2, v3, dt);
+	}
+}

@@ -109,6 +109,7 @@ lzs_renderer_t* lzs_renderer_new(const char* s)
 	self->ball_y  = 240.0f;
 	self->laser_x = 400.0f;
 	self->laser_y = 240.0f;
+	a3d_mat4f_identity(&self->phone_gyro);
 
 	// allocate the buffer(s)
 	GLint bsize  = 2 * ((int) BALL_RADIUS);
@@ -379,4 +380,20 @@ void lzs_renderer_searchball(lzs_renderer_t* self, float x1, float y1, float x2,
 
 	self->ball_x = x;
 	self->ball_y = y;
+}
+
+void lzs_renderer_phonegyro(lzs_renderer_t* self, float v1, float v2, float v3, float dt)
+{
+	assert(self);
+	LOGI("v1=%f, v2=%f, v3=%f, dt=%f", v1, v2, v3, dt);
+
+	// v1 is positive rotation about y
+	// v2 is negative rotation about x
+	// v3 is positive rotation about z
+	//float ax = 0.0f;
+	//float ay = 0.0f;
+	//float az = 0.0f;
+	//a3d_mat4f_rotate(&self->phone_gyro, 0, ax, 1.0f, 0.0f, 0.0f);
+	//a3d_mat4f_rotate(&self->phone_gyro, 0, ay, 0.0f, 1.0f, 0.0f);
+	//a3d_mat4f_rotate(&self->phone_gyro, 0, az, 0.0f, 0.0f, 1.0f);
 }

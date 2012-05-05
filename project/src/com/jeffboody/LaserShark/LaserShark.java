@@ -30,11 +30,15 @@ import android.os.PowerManager;
 import android.content.Context;
 import android.view.Window;
 import android.view.WindowManager;
+import android.hardware.SensorManager;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
 import android.view.MotionEvent;
 import com.jeffboody.a3d.A3DSurfaceView;
 import com.jeffboody.a3d.A3DResource;
 
-public class LaserShark extends Activity
+public class LaserShark extends Activity implements SensorEventListener
 {
 	private static final String TAG = "LaserShark";
 
@@ -43,6 +47,11 @@ public class LaserShark extends Activity
 
 	// keep screen awake
 	private PowerManager.WakeLock mWakeLock;
+
+	// sensors
+	final float NS2S = 1.0f / 1000000000.0f;
+	private Sensor        mGyro;
+	private long          mGyroTimestamp;
 
 	// touch events
 	private final int INIT_STATE = 0;
@@ -57,6 +66,7 @@ public class LaserShark extends Activity
 	// Native interface
 	private native void NativeTouchOne(float x1, float y1);
 	private native void NativeTouchTwo(float x1, float y1, float x2, float y2);
+	private native void NativeGyroEvent(float v0, float v1, float v2, float dt);
 
 	@Override
 	public void onCreate(Bundle savedInstanceState)
@@ -85,11 +95,29 @@ public class LaserShark extends Activity
 		super.onResume();
 		Surface.ResumeRenderer();
 		mWakeLock.acquire();
+
+		SensorManager sm = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
+		mGyro = sm.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
+		if(mGyro != null)
+		{
+			sm.registerListener(this,
+			                    mGyro,
+			                    SensorManager.SENSOR_DELAY_NORMAL);
+		}
+		mGyroTimestamp = 0L;
 	}
 
 	@Override
 	protected void onPause()
 	{
+		if(mGyro != null)
+		{
+			SensorManager sm = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
+			sm = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
+			sm.unregisterListener(this);
+			mGyro = null;
+		}
+
 		mWakeLock.release();
 		Surface.PauseRenderer();
 		super.onPause();
@@ -162,6 +190,27 @@ public class LaserShark extends Activity
 		}
 
 		return true;
+	}
+
+	/*
+	 * SensorEventListener interface
+	 */
+
+	public void onSensorChanged(SensorEvent event)
+	{
+		if(event.sensor.getType() == Sensor.TYPE_GYROSCOPE)
+		{
+			if(mGyroTimestamp != 0L)
+			{
+				float dt = (event.timestamp - mGyroTimestamp) * NS2S;
+				NativeGyroEvent(event.values[0], event.values[1], event.values[2], dt);
+			}
+			mGyroTimestamp = event.timestamp;
+		}
+	}
+
+	public void onAccuracyChanged(Sensor sensor, int accuracy)
+	{
 	}
 
 	static
