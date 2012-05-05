@@ -4,6 +4,8 @@
 # To update project for new SDK
 # android update project -p project -t android-7
 
+# TODO - symlink to RobotUILibrary
+
 # App
 export APP=LaserShark
 
