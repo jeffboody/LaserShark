@@ -25,6 +25,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <math.h>
 #include <GLES/glext.h>
 
 #define LOG_TAG "LaserShark"
@@ -93,7 +94,7 @@ static GLfloat COORDS[] =
 * public                                                   *
 ***********************************************************/
 
-lzs_renderer_t* lzs_renderer_new(const char* s)
+lzs_renderer_t* lzs_renderer_new(const char* font)
 {
 	assert(s);
 	LOGD("debug");
@@ -110,6 +111,9 @@ lzs_renderer_t* lzs_renderer_new(const char* s)
 	self->laser_x = 400.0f;
 	self->laser_y = 240.0f;
 	a3d_mat4f_identity(&self->phone_gyro);
+	self->sphero_heading        = 0.0f;
+	self->sphero_heading_offset = 0.0f;
+	self->phone_heading         = 0.0f;
 
 	// allocate the buffer(s)
 	GLint bsize  = 2 * ((int) BALL_RADIUS);
@@ -127,6 +131,25 @@ lzs_renderer_t* lzs_renderer_new(const char* s)
 		goto fail_laser;
 	}
 
+	// create the font
+	self->font = a3d_texfont_new(font);
+	if(self->font == NULL)
+	{
+		goto fail_font;
+	}
+
+	// create the string(s)
+	self->string_sphero = a3d_texstring_new(self->font, 64, 32, A3D_TEXSTRING_TOP_CENTER, 1.0f, 1.0f, 0.235f, 1.0f);
+	if(self->string_sphero == NULL)
+	{
+		goto fail_string_sphero;
+	}
+	self->string_phone = a3d_texstring_new(self->font, 64, 32, A3D_TEXSTRING_TOP_CENTER, 1.0f, 1.0f, 0.235f, 1.0f);
+	if(self->string_phone == NULL)
+	{
+		goto fail_string_phone;
+	}
+
 	glGenTextures(1, &self->texid);
 	glEnableClientState(GL_VERTEX_ARRAY);
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
@@ -136,6 +159,12 @@ lzs_renderer_t* lzs_renderer_new(const char* s)
 	return self;
 
 	// failure
+	fail_string_phone:
+		a3d_texstring_delete(&self->string_sphero);
+	fail_string_sphero:
+		a3d_texfont_delete(&self->font);
+	fail_font:
+		texgz_tex_delete(&self->laser_buffer);
 	fail_laser:
 		texgz_tex_delete(&self->ball_buffer);
 	fail_ball:
@@ -151,6 +180,9 @@ void lzs_renderer_delete(lzs_renderer_t** _self)
 	if(self)
 	{
 		LOGD("debug");
+		a3d_texstring_delete(&self->string_phone);
+		a3d_texstring_delete(&self->string_sphero);
+		a3d_texfont_delete(&self->font);
 		texgz_tex_delete(&self->laser_buffer);
 		texgz_tex_delete(&self->ball_buffer);
 		glBindTexture(GL_TEXTURE_EXTERNAL_OES, 0);
@@ -304,6 +336,10 @@ void lzs_renderer_draw(lzs_renderer_t* self)
 		lzs_renderer_drawbox(y - r, x - r, y + r, x + r, 0.0f, 1.0f, 0.0f, 0);
 	}
 
+	// draw string
+	a3d_texstring_draw(self->string_sphero, 400.0f, 16.0f, 800, 480);
+	a3d_texstring_draw(self->string_phone,  400.0f, 16.0f + self->string_sphero->size, 800, 480);
+
 	A3D_GL_GETERROR();
 }
 
@@ -380,12 +416,17 @@ void lzs_renderer_searchball(lzs_renderer_t* self, float x1, float y1, float x2,
 
 	self->ball_x = x;
 	self->ball_y = y;
+
+	// try to adjust sphero heading to match compass
+	self->sphero_heading_offset = self->phone_heading - self->sphero_heading;
 }
 
 void lzs_renderer_phonegyro(lzs_renderer_t* self, float v1, float v2, float v3, float dt)
 {
 	assert(self);
 	LOGD("v1=%f, v2=%f, v3=%f, dt=%f", v1, v2, v3, dt);
+	//self->phone_heading -= 180.0f * (v1*dt) / M_PI;
+	//a3d_texstring_printf(self->string_phone, "phone=%i", (int) self->phone_heading);
 
 	// v1 is positive rotation about y
 	// v2 is negative rotation about x
@@ -398,8 +439,31 @@ void lzs_renderer_phonegyro(lzs_renderer_t* self, float v1, float v2, float v3, 
 	//a3d_mat4f_rotate(&self->phone_gyro, 0, az, 0.0f, 0.0f, 1.0f);
 }
 
+float fix_angle(float angle)
+{
+	while(angle >= 360.0f)
+	{
+		angle -= 360.0f;
+	}
+	while(angle < 0.0f)
+	{
+		angle += 360.0f;
+	}
+	return angle;
+}
+
 void lzs_renderer_spheroorientation(lzs_renderer_t* self, float pitch, float roll, float yaw)
 {
 	assert(self);
-	LOGI("pitch=%f, roll=%f, yaw=%f", pitch, roll, yaw);
+	LOGD("pitch=%f, roll=%f, yaw=%f", pitch, roll, yaw);
+	self->sphero_heading = -yaw;
+	a3d_texstring_printf(self->string_sphero, "sphero=%i", (int) fix_angle(self->sphero_heading + self->sphero_heading_offset));
+}
+
+void lzs_renderer_phoneorientation(lzs_renderer_t* self, float pitch, float roll, float yaw)
+{
+	assert(self);
+	LOGD("pitch=%f, roll=%f, yaw=%f", pitch, roll, yaw);
+	self->phone_heading = yaw;
+	a3d_texstring_printf(self->string_phone, "phone=%i", (int) fix_angle(self->phone_heading));
 }

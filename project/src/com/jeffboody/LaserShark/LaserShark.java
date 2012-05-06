@@ -59,8 +59,9 @@ public class LaserShark extends Activity implements SensorEventListener
 
 	// sensors
 	final float NS2S = 1.0f / 1000000000.0f;
-	private Sensor        mGyro;
-	private long          mGyroTimestamp;
+	private Sensor mOrientation;
+	private Sensor mGyro;
+	private long   mGyroTimestamp;
 
 	private final DeviceMessenger.AsyncDataListener mDataListener = new DeviceMessenger.AsyncDataListener()
 	{
@@ -95,6 +96,7 @@ public class LaserShark extends Activity implements SensorEventListener
 	private native void NativeTouchTwo(float x1, float y1, float x2, float y2);
 	private native void NativeGyroEvent(float v0, float v1, float v2, float dt);
 	private native void NativeSpheroOrientation(float pitch, float roll, float yaw);
+	private native void NativePhoneOrientation(float pitch, float roll, float yaw);
 
 	public Robot getRobot()
 	{
@@ -250,17 +252,26 @@ public class LaserShark extends Activity implements SensorEventListener
 			                    SensorManager.SENSOR_DELAY_NORMAL);
 		}
 		mGyroTimestamp = 0L;
+
+		mOrientation = sm.getDefaultSensor(Sensor.TYPE_ORIENTATION);
+		if(mOrientation != null)
+		{
+			sm.registerListener(this,
+			                    mOrientation,
+			                    SensorManager.SENSOR_DELAY_GAME);
+		}
 	}
 
 	@Override
 	protected void onPause()
 	{
-		if(mGyro != null)
+		if((mGyro != null) || (mOrientation != null))
 		{
 			SensorManager sm = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
 			sm = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
 			sm.unregisterListener(this);
 			mGyro = null;
+			mOrientation = null;
 		}
 
 		mWakeLock.release();
@@ -351,6 +362,13 @@ public class LaserShark extends Activity implements SensorEventListener
 				NativeGyroEvent(event.values[0], event.values[1], event.values[2], dt);
 			}
 			mGyroTimestamp = event.timestamp;
+		}
+		else if(event.sensor.getType() == Sensor.TYPE_ORIENTATION)
+		{
+			float azmuth = event.values[0];
+			float pitch  = event.values[1];
+			float roll   = event.values[2];
+			NativePhoneOrientation(pitch, roll, azmuth);
 		}
 	}
 

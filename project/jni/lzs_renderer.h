@@ -26,6 +26,8 @@
 
 #include "a3d/a3d_GL.h"
 #include "a3d/math/a3d_mat4f.h"
+#include "a3d/a3d_texfont.h"
+#include "a3d/a3d_texstring.h"
 #include "texgz/texgz_tex.h"
 
 /***********************************************************
@@ -42,9 +44,19 @@ typedef struct
 	float        laser_y;
 	texgz_tex_t* laser_buffer;
 	a3d_mat4f_t  phone_gyro;
+
+	// heading
+	float sphero_heading;
+	float sphero_heading_offset;
+	float phone_heading;
+
+	// string(s)
+	a3d_texfont_t*   font;
+	a3d_texstring_t* string_sphero;
+	a3d_texstring_t* string_phone;
 } lzs_renderer_t;
 
-lzs_renderer_t* lzs_renderer_new(const char* s);
+lzs_renderer_t* lzs_renderer_new(const char* font);
 void            lzs_renderer_delete(lzs_renderer_t** _self);
 void            lzs_renderer_resize(lzs_renderer_t* self, int w, int h);
 void            lzs_renderer_drawbox(float top, float left, float bottom, float right, float r, float g, float b, int filled);
@@ -53,5 +65,6 @@ void            lzs_renderer_searchlaser(lzs_renderer_t* self, float x, float y)
 void            lzs_renderer_searchball(lzs_renderer_t* self, float x1, float y1, float x2, float y2);
 void            lzs_renderer_phonegyro(lzs_renderer_t* self, float v1, float v2, float v3, float dt);
 void            lzs_renderer_spheroorientation(lzs_renderer_t* self, float pitch, float roll, float yaw);
+void            lzs_renderer_phoneorientation(lzs_renderer_t* self, float pitch, float roll, float yaw);
 
 #endif
