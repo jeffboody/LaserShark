@@ -182,3 +182,15 @@ JNIEXPORT int JNICALL Java_com_jeffboody_LaserShark_LaserShark_NativeSpheroHeadi
 	}
 	return 0;
 }
+
+JNIEXPORT float JNICALL Java_com_jeffboody_LaserShark_LaserShark_NativeSpheroSpeed(JNIEnv* env)
+{
+	assert(env);
+	LOGD("debug");
+
+	if(lzs_renderer)
+	{
+		return lzs_renderer_spherospeed(lzs_renderer);
+	}
+	return 0.0f;
+}

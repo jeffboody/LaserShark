@@ -43,8 +43,10 @@ typedef struct
 	float        sphero_y;
 	float        sphero_X;
 	float        sphero_Y;
+	float        sphero_speed;
 	float        sphero_heading;
 	float        sphero_heading_offset;
+	float        sphero_goal;
 	texgz_tex_t* sphero_buffer;
 	float        laser_x;
 	float        laser_y;
@@ -60,6 +62,7 @@ typedef struct
 	a3d_texfont_t*   font;
 	a3d_texstring_t* string_sphero;
 	a3d_texstring_t* string_phone;
+	a3d_texstring_t* string_laser;
 } lzs_renderer_t;
 
 lzs_renderer_t* lzs_renderer_new(const char* font);
@@ -73,5 +76,6 @@ void            lzs_renderer_phonegyro(lzs_renderer_t* self, float v1, float v2,
 void            lzs_renderer_spheroorientation(lzs_renderer_t* self, float pitch, float roll, float yaw);
 void            lzs_renderer_phoneorientation(lzs_renderer_t* self, float pitch, float roll, float yaw);
 int             lzs_renderer_spheroheading(lzs_renderer_t* self);
+float           lzs_renderer_spherospeed(lzs_renderer_t* self);
 
 #endif

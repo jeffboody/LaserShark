@@ -95,12 +95,13 @@ public class LaserShark extends Activity implements SensorEventListener
 	private float Y2    = 0.0F;
 
 	// Native interface
-	private native void NativeTouchOne(float x1, float y1);
-	private native void NativeTouchTwo(float x1, float y1, float x2, float y2);
-	private native void NativeGyroEvent(float v0, float v1, float v2, float dt);
-	private native void NativeSpheroOrientation(float pitch, float roll, float yaw);
-	private native void NativePhoneOrientation(float pitch, float roll, float yaw);
-	private native int  NativeSpheroHeading();
+	private native void  NativeTouchOne(float x1, float y1);
+	private native void  NativeTouchTwo(float x1, float y1, float x2, float y2);
+	private native void  NativeGyroEvent(float v0, float v1, float v2, float dt);
+	private native void  NativeSpheroOrientation(float pitch, float roll, float yaw);
+	private native void  NativePhoneOrientation(float pitch, float roll, float yaw);
+	private native int   NativeSpheroHeading();
+	private native float NativeSpheroSpeed();
 
 	public Robot getRobot()
 	{
@@ -133,7 +134,7 @@ public class LaserShark extends Activity implements SensorEventListener
 		{
 			if(mIsCalibrated)
 			{
-				RollCommand.sendCommand(mRobot, (float) NativeSpheroHeading(), 0.25f);
+				RollCommand.sendCommand(mRobot, (float) NativeSpheroHeading(), NativeSpheroSpeed());
 			}
 			else
 			{
