@@ -170,3 +170,15 @@ JNIEXPORT void JNICALL Java_com_jeffboody_LaserShark_LaserShark_NativePhoneOrien
 		lzs_renderer_phoneorientation(lzs_renderer, pitch, roll, yaw);
 	}
 }
+
+JNIEXPORT int JNICALL Java_com_jeffboody_LaserShark_LaserShark_NativeSpheroHeading(JNIEnv* env)
+{
+	assert(env);
+	LOGD("debug");
+
+	if(lzs_renderer)
+	{
+		return lzs_renderer_spheroheading(lzs_renderer);
+	}
+	return 0;
+}

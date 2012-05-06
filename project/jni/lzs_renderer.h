@@ -66,5 +66,6 @@ void            lzs_renderer_searchball(lzs_renderer_t* self, float x1, float y1
 void            lzs_renderer_phonegyro(lzs_renderer_t* self, float v1, float v2, float v3, float dt);
 void            lzs_renderer_spheroorientation(lzs_renderer_t* self, float pitch, float roll, float yaw);
 void            lzs_renderer_phoneorientation(lzs_renderer_t* self, float pitch, float roll, float yaw);
+int             lzs_renderer_spheroheading(lzs_renderer_t* self);
 
 #endif

@@ -63,6 +63,9 @@ public class LaserShark extends Activity implements SensorEventListener
 	private Sensor mGyro;
 	private long   mGyroTimestamp;
 
+	// calibration
+	private boolean mIsCalibrated = false;
+
 	private final DeviceMessenger.AsyncDataListener mDataListener = new DeviceMessenger.AsyncDataListener()
 	{
 		@Override
@@ -97,6 +100,7 @@ public class LaserShark extends Activity implements SensorEventListener
 	private native void NativeGyroEvent(float v0, float v1, float v2, float dt);
 	private native void NativeSpheroOrientation(float pitch, float roll, float yaw);
 	private native void NativePhoneOrientation(float pitch, float roll, float yaw);
+	private native int  NativeSpheroHeading();
 
 	public Robot getRobot()
 	{
@@ -123,6 +127,25 @@ public class LaserShark extends Activity implements SensorEventListener
 		}
 	}
 
+	private void drive()
+	{
+		if(mRobot != null)
+		{
+			if(mIsCalibrated)
+			{
+				RollCommand.sendCommand(mRobot, (float) NativeSpheroHeading(), 0.25f);
+			}
+			else
+			{
+				RollCommand.sendStop(mRobot);
+			}
+
+			// send delayed message on a handler to drive
+			final Handler handler = new Handler();
+			handler.postDelayed(new Runnable() { public void run() { drive(); } }, 100);
+		}
+	}
+
 	@Override
 	protected void onStart()
 	{
@@ -139,10 +162,13 @@ public class LaserShark extends Activity implements SensorEventListener
 	{
 
 		// turn stabilization back on
-		StabilizationCommand.sendCommand(mRobot, true);
+		//StabilizationCommand.sendCommand(mRobot, true);
 
 		// turn rear light off
 		FrontLEDOutputCommand.sendCommand(mRobot, 0.0f);
+
+		// stop the ball
+		RollCommand.sendStop(mRobot);
 
 		// stop the streaming data when we leave
 		SetDataStreamingCommand.sendCommand(mRobot, 0, 0,
@@ -150,6 +176,9 @@ public class LaserShark extends Activity implements SensorEventListener
 
 		// unregister the async data listener to prevent a memory leak.
 		DeviceMessenger.getInstance().removeAsyncDataListener(mRobot, mDataListener);
+
+		// sleep
+		SleepCommand.sendCommand(mRobot, 0, 0);
 
 		// pause here for a tenth of a second to allow the previous commands to go through before we shutdown
 		// the connection to the ball
@@ -183,7 +212,7 @@ public class LaserShark extends Activity implements SensorEventListener
 			FrontLEDOutputCommand.sendCommand(mRobot, 1.0f);
 
 			// turn stabilization off
-			StabilizationCommand.sendCommand(mRobot, false);
+			//StabilizationCommand.sendCommand(mRobot, false);
 
 			// turn data streaming on for the specific types we want
 			//
@@ -210,8 +239,8 @@ public class LaserShark extends Activity implements SensorEventListener
 			                                    SetDataStreamingCommand.DATA_STREAMING_MASK_IMU_ROLL_ANGLE_FILTERED |
 			                                    SetDataStreamingCommand.DATA_STREAMING_MASK_IMU_YAW_ANGLE_FILTERED, 0);
 
-			// start blinking
-			// blink(false);
+			// start the ball
+			drive();
 		}
 	}
 
@@ -336,6 +365,7 @@ public class LaserShark extends Activity implements SensorEventListener
 					Y2 = event.getY(event.findPointerIndex(1));
 					NativeTouchTwo(X1, Y1, X2, Y2);
 				}
+				mIsCalibrated = true;
 			}
 			// limit touch events to 30Hz
 			Thread.sleep((long) (1000.0F/30.0F));

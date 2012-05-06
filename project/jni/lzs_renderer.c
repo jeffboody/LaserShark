@@ -38,7 +38,7 @@
 #define SCREEN_W 800.0f
 #define SCREEN_H 480.0f
 
-#define BALL_RADIUS  128.0f
+#define BALL_RADIUS  64.0f
 #define LASER_RADIUS 64.0f
 
 // tangent derivitives
@@ -268,12 +268,49 @@ void lzs_renderer_draw(lzs_renderer_t* self)
 
 		// process ball
 		texgz_tex_t* bg  = texgz_tex_convertcopy(b, TEXGZ_FLOAT, TEXGZ_LUMINANCE);
-		texgz_tex_t* bsx = texgz_tex_convolvecopy(bg, SOBEL_X, 3, 1);
-		texgz_tex_t* bsy = texgz_tex_convolvecopy(bg, SOBEL_Y, 3, 1);
+		texgz_tex_t* bsx = texgz_tex_convolvecopy(bg, SOBEL_X, 3, 0);
+		texgz_tex_t* bsy = texgz_tex_convolvecopy(bg, SOBEL_Y, 3, 0);
 		//texgz_tex_export(b,   "/sdcard/laser-shark/ball.texgz");
 		//texgz_tex_export(bg,  "/sdcard/laser-shark/ball-gray.texgz");
-		//texgz_tex_export(bsx, "/sdcard/laser-shark/ball-sx.texgz");
-		//texgz_tex_export(bsy, "/sdcard/laser-shark/ball-sy.texgz");
+		//texgz_tex_export(bsx, "/sdcard/laser-shark/ball-sx.texgz");   // requires rescale
+		//texgz_tex_export(bsy, "/sdcard/laser-shark/ball-sy.texgz");   // requires rescale
+
+		// replace bg with magnitude of bsx, bsy
+		{
+			int    x;
+			int    y;
+			int    peak_x  = 0;
+			int    peak_y  = 0;
+			float  peak    = 0.0f;
+			float* fpixels = (float*) bg->pixels;
+			float* xpixels = (float*) bsx->pixels;
+			float* ypixels = (float*) bsy->pixels;
+			for(x = 0; x < bg->width; ++x)
+			{
+				for(y = 0; y < bg->height; ++y)
+				{
+					int idx      = bg->width*y + x;
+					// compute magnitude squared
+					fpixels[idx] = xpixels[idx]*xpixels[idx] + ypixels[idx]*ypixels[idx];
+					if(fpixels[idx] > peak)
+					{
+						peak_x = x;
+						peak_y = y;
+						peak   = fpixels[idx];
+					}
+				}
+			}
+			LOGI("peak=%f, peak_x=%i, peak_y=%i", peak, peak_x, peak_y);
+
+			// move ball center to match peak
+			if(peak >= 0.15f)
+			{
+				self->ball_x += (float) peak_x - (float) bg->width / 2.0f;
+				self->ball_y -= (float) peak_y - (float) bg->height / 2.0f;
+			}
+
+			//texgz_tex_export(bg,  "/sdcard/laser-shark/ball-peak.texgz");
+		}
 
 		// process laser
 		texgz_tex_t* lg = texgz_tex_convertcopy(l, TEXGZ_FLOAT, TEXGZ_LUMINANCE);
@@ -283,30 +320,33 @@ void lzs_renderer_draw(lzs_renderer_t* self)
 		//texgz_tex_export(lp,  "/sdcard/laser-shark/laser-peak.texgz");
 
 		// compute laser peak
-		int    x;
-		int    y;
-		int    peak_x  = 0;
-		int    peak_y  = 0;
-		float  peak    = 0.0f;
-		float* fpixels = (float*) lp->pixels;
-		for(x = 0; x < lp->width; ++x)
 		{
-			for(y = 0; y < lp->height; ++y)
+			int    x;
+			int    y;
+			int    peak_x  = 0;
+			int    peak_y  = 0;
+			float  peak    = 0.0f;
+			float* fpixels = (float*) lp->pixels;
+			for(x = 0; x < lp->width; ++x)
 			{
-				if(fpixels[lp->width*y + x] > peak)
+				for(y = 0; y < lp->height; ++y)
 				{
-					peak_x = x;
-					peak_y = y;
-					peak   = fpixels[lp->width*y + x];
+					int idx  = lp->width*y + x;
+					if(fpixels[idx] > peak)
+					{
+						peak_x = x;
+						peak_y = y;
+						peak   = fpixels[idx];
+					}
 				}
 			}
-		}
 
-		// move laser center to match peak
-		if(peak >= 0.5f)
-		{
-			self->laser_x += (float) peak_x - (float) l->width / 2.0f;
-			self->laser_y -= (float) peak_y - (float) l->height / 2.0f;
+			// move laser center to match peak
+			if(peak >= 0.5f)
+			{
+				self->laser_x += (float) peak_x - (float) l->width / 2.0f;
+				self->laser_y -= (float) peak_y - (float) l->height / 2.0f;
+			}
 		}
 
 		texgz_tex_delete(&bg);
@@ -339,6 +379,11 @@ void lzs_renderer_draw(lzs_renderer_t* self)
 	// draw string
 	a3d_texstring_draw(self->string_sphero, 400.0f, 16.0f, 800, 480);
 	a3d_texstring_draw(self->string_phone,  400.0f, 16.0f + self->string_sphero->size, 800, 480);
+
+	//texgz_tex_t* screen = texgz_tex_new(SCREEN_W, SCREEN_H, SCREEN_W, SCREEN_H, TEXGZ_UNSIGNED_BYTE, TEXGZ_BGRA, NULL);
+	//glReadPixels(0, 0, screen->width, screen->height, screen->format, screen->type, (void*) screen->pixels);
+	//texgz_tex_export(screen, "/sdcard/laser-shark/screen.texgz");
+	//texgz_tex_delete(&screen);
 
 	A3D_GL_GETERROR();
 }
@@ -466,4 +511,12 @@ void lzs_renderer_phoneorientation(lzs_renderer_t* self, float pitch, float roll
 	LOGD("pitch=%f, roll=%f, yaw=%f", pitch, roll, yaw);
 	self->phone_heading = yaw;
 	a3d_texstring_printf(self->string_phone, "phone=%i", (int) fix_angle(self->phone_heading));
+}
+
+int lzs_renderer_spheroheading(lzs_renderer_t* self)
+{
+	assert(self);
+	LOGD("debug");
+
+	return self->phone_heading;
 }
