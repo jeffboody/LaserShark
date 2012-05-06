@@ -106,24 +106,31 @@ lzs_renderer_t* lzs_renderer_new(const char* font)
 		return NULL;
 	}
 
-	self->ball_x  = 400.0f;
-	self->ball_y  = 240.0f;
-	self->laser_x = 400.0f;
-	self->laser_y = 240.0f;
-	a3d_mat4f_identity(&self->phone_gyro);
+	self->sphero_x              = 400.0f;
+	self->sphero_y              = 240.0f;
+	self->sphero_X              = 0.0f;
+	self->sphero_Y              = 0.0f;
 	self->sphero_heading        = 0.0f;
 	self->sphero_heading_offset = 0.0f;
+	self->laser_x               = 400.0f;
+	self->laser_y               = 240.0f;
+	self->laser_X               = 0.0f;
+	self->laser_Y               = 0.0f;
 	self->phone_heading         = 0.0f;
+	self->phone_slope           = 0.0f;
+	self->phone_height          = 5.0f;
+
+	a3d_mat4f_identity(&self->phone_gyro);
 
 	// allocate the buffer(s)
-	GLint bsize  = 2 * ((int) BALL_RADIUS);
-	GLint lsize  = 2 * ((int) LASER_RADIUS);
-	GLint format = TEXGZ_BGRA;
-	GLint type   = GL_UNSIGNED_BYTE;
-	self->ball_buffer  = texgz_tex_new(bsize, bsize, bsize, bsize, type, format, NULL);
-	if(self->ball_buffer == NULL)
+	GLint bsize         = 2 * ((int) BALL_RADIUS);
+	GLint lsize         = 2 * ((int) LASER_RADIUS);
+	GLint format        = TEXGZ_BGRA;
+	GLint type          = GL_UNSIGNED_BYTE;
+	self->sphero_buffer = texgz_tex_new(bsize, bsize, bsize, bsize, type, format, NULL);
+	if(self->sphero_buffer == NULL)
 	{
-		goto fail_ball;
+		goto fail_sphero;
 	}
 	self->laser_buffer = texgz_tex_new(lsize, lsize, lsize, lsize, type, format, NULL);
 	if(self->laser_buffer == NULL)
@@ -166,8 +173,8 @@ lzs_renderer_t* lzs_renderer_new(const char* font)
 	fail_font:
 		texgz_tex_delete(&self->laser_buffer);
 	fail_laser:
-		texgz_tex_delete(&self->ball_buffer);
-	fail_ball:
+		texgz_tex_delete(&self->sphero_buffer);
+	fail_sphero:
 		free(self);
 	return NULL;
 }
@@ -184,7 +191,7 @@ void lzs_renderer_delete(lzs_renderer_t** _self)
 		a3d_texstring_delete(&self->string_sphero);
 		a3d_texfont_delete(&self->font);
 		texgz_tex_delete(&self->laser_buffer);
-		texgz_tex_delete(&self->ball_buffer);
+		texgz_tex_delete(&self->sphero_buffer);
 		glBindTexture(GL_TEXTURE_EXTERNAL_OES, 0);
 		glDeleteTextures(1, &self->texid);
 		free(self);
@@ -259,21 +266,21 @@ void lzs_renderer_draw(lzs_renderer_t* self)
 
 		// TODO - check for texgz errors
 
-		texgz_tex_t* b = self->ball_buffer;
-		glReadPixels(self->ball_x - BALL_RADIUS, (SCREEN_H - self->ball_y - 1) - BALL_RADIUS,
+		texgz_tex_t* b = self->sphero_buffer;
+		glReadPixels(self->sphero_x - BALL_RADIUS, (SCREEN_H - self->sphero_y - 1) - BALL_RADIUS,
 		             b->width, b->height, b->format, b->type, (void*) b->pixels);
 		texgz_tex_t* l = self->laser_buffer;
 		glReadPixels(self->laser_x - LASER_RADIUS, (SCREEN_H - self->laser_y - 1) - LASER_RADIUS,
 		             l->width, l->height, l->format, l->type, (void*) l->pixels);
 
-		// process ball
+		// process sphero
 		texgz_tex_t* bg  = texgz_tex_convertcopy(b, TEXGZ_FLOAT, TEXGZ_LUMINANCE);
 		texgz_tex_t* bsx = texgz_tex_convolvecopy(bg, SOBEL_X, 3, 0);
 		texgz_tex_t* bsy = texgz_tex_convolvecopy(bg, SOBEL_Y, 3, 0);
-		//texgz_tex_export(b,   "/sdcard/laser-shark/ball.texgz");
-		//texgz_tex_export(bg,  "/sdcard/laser-shark/ball-gray.texgz");
-		//texgz_tex_export(bsx, "/sdcard/laser-shark/ball-sx.texgz");   // requires rescale
-		//texgz_tex_export(bsy, "/sdcard/laser-shark/ball-sy.texgz");   // requires rescale
+		//texgz_tex_export(b,   "/sdcard/laser-shark/sphero.texgz");
+		//texgz_tex_export(bg,  "/sdcard/laser-shark/sphero-gray.texgz");
+		//texgz_tex_export(bsx, "/sdcard/laser-shark/sphero-sx.texgz");   // requires rescale
+		//texgz_tex_export(bsy, "/sdcard/laser-shark/sphero-sy.texgz");   // requires rescale
 
 		// replace bg with magnitude of bsx, bsy
 		{
@@ -302,14 +309,14 @@ void lzs_renderer_draw(lzs_renderer_t* self)
 			}
 			LOGI("peak=%f, peak_x=%i, peak_y=%i", peak, peak_x, peak_y);
 
-			// move ball center to match peak
+			// move sphero center to match peak
 			if(peak >= 0.15f)
 			{
-				self->ball_x += (float) peak_x - (float) bg->width / 2.0f;
-				self->ball_y -= (float) peak_y - (float) bg->height / 2.0f;
+				self->sphero_x += (float) peak_x - (float) bg->width / 2.0f;
+				self->sphero_y -= (float) peak_y - (float) bg->height / 2.0f;
 			}
 
-			//texgz_tex_export(bg,  "/sdcard/laser-shark/ball-peak.texgz");
+			//texgz_tex_export(bg,  "/sdcard/laser-shark/sphero-peak.texgz");
 		}
 
 		// process laser
@@ -368,10 +375,10 @@ void lzs_renderer_draw(lzs_renderer_t* self)
 		lzs_renderer_drawbox(y - r, x - r, y + r, x + r, 1.0f, 0.0f, 0.0f, 0);
 	}
 
-	// draw ball search box
+	// draw sphero search box
 	{
-		float x = self->ball_x;
-		float y = self->ball_y;
+		float x = self->sphero_x;
+		float y = self->sphero_y;
 		float r = BALL_RADIUS;
 		lzs_renderer_drawbox(y - r, x - r, y + r, x + r, 0.0f, 1.0f, 0.0f, 0);
 	}
@@ -416,7 +423,7 @@ void lzs_renderer_searchlaser(lzs_renderer_t* self, float x, float y)
 	self->laser_y = y;
 }
 
-void lzs_renderer_searchball(lzs_renderer_t* self, float x1, float y1, float x2, float y2)
+void lzs_renderer_searchsphero(lzs_renderer_t* self, float x1, float y1, float x2, float y2)
 {
 	assert(self);
 	LOGD("debug x=%f, y=%f, radius=%f", x, y, radius);
@@ -459,8 +466,8 @@ void lzs_renderer_searchball(lzs_renderer_t* self, float x1, float y1, float x2,
 		y = SCREEN_H - r - 1;
 	}
 
-	self->ball_x = x;
-	self->ball_y = y;
+	self->sphero_x = x;
+	self->sphero_y = y;
 
 	// try to adjust sphero heading to match compass
 	self->sphero_heading_offset = self->phone_heading - self->sphero_heading;
@@ -502,7 +509,7 @@ void lzs_renderer_spheroorientation(lzs_renderer_t* self, float pitch, float rol
 	assert(self);
 	LOGD("pitch=%f, roll=%f, yaw=%f", pitch, roll, yaw);
 	self->sphero_heading = -yaw;
-	a3d_texstring_printf(self->string_sphero, "sphero=%i", (int) fix_angle(self->sphero_heading + self->sphero_heading_offset));
+	a3d_texstring_printf(self->string_sphero, "sphero: heading=%i", (int) fix_angle(self->sphero_heading + self->sphero_heading_offset));
 }
 
 void lzs_renderer_phoneorientation(lzs_renderer_t* self, float pitch, float roll, float yaw)
@@ -510,7 +517,8 @@ void lzs_renderer_phoneorientation(lzs_renderer_t* self, float pitch, float roll
 	assert(self);
 	LOGD("pitch=%f, roll=%f, yaw=%f", pitch, roll, yaw);
 	self->phone_heading = yaw;
-	a3d_texstring_printf(self->string_phone, "phone=%i", (int) fix_angle(self->phone_heading));
+	self->phone_slope   = roll;
+	a3d_texstring_printf(self->string_phone, "phone: heading=%i, slope=%i", (int) fix_angle(self->phone_heading), (int) fix_angle(self->phone_slope));
 }
 
 int lzs_renderer_spheroheading(lzs_renderer_t* self)

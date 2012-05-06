@@ -36,19 +36,25 @@
 
 typedef struct
 {
+	// x, y are in pixels
+	// X, Y, height are in feet
 	GLuint       texid;
-	float        ball_x;
-	float        ball_y;
-	texgz_tex_t* ball_buffer;
+	float        sphero_x;
+	float        sphero_y;
+	float        sphero_X;
+	float        sphero_Y;
+	float        sphero_heading;
+	float        sphero_heading_offset;
+	texgz_tex_t* sphero_buffer;
 	float        laser_x;
 	float        laser_y;
+	float        laser_X;
+	float        laser_Y;
 	texgz_tex_t* laser_buffer;
 	a3d_mat4f_t  phone_gyro;
-
-	// heading
-	float sphero_heading;
-	float sphero_heading_offset;
-	float phone_heading;
+	float        phone_heading;
+	float        phone_slope;
+	float        phone_height;
 
 	// string(s)
 	a3d_texfont_t*   font;
@@ -62,7 +68,7 @@ void            lzs_renderer_resize(lzs_renderer_t* self, int w, int h);
 void            lzs_renderer_drawbox(float top, float left, float bottom, float right, float r, float g, float b, int filled);
 void            lzs_renderer_draw(lzs_renderer_t* self);
 void            lzs_renderer_searchlaser(lzs_renderer_t* self, float x, float y);
-void            lzs_renderer_searchball(lzs_renderer_t* self, float x1, float y1, float x2, float y2);
+void            lzs_renderer_searchsphero(lzs_renderer_t* self, float x1, float y1, float x2, float y2);
 void            lzs_renderer_phonegyro(lzs_renderer_t* self, float v1, float v2, float v3, float dt);
 void            lzs_renderer_spheroorientation(lzs_renderer_t* self, float pitch, float roll, float yaw);
 void            lzs_renderer_phoneorientation(lzs_renderer_t* self, float pitch, float roll, float yaw);
