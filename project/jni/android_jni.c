@@ -120,9 +120,10 @@ JNIEXPORT void JNICALL Java_com_jeffboody_LaserShark_LaserShark_NativeTouchOne(J
 	assert(env);
 	LOGD("debug x1=%f, y1=%f", x1, y1);
 
+	// TODO - match virtual screen with physical screen
 	if(lzs_renderer)
 	{
-		lzs_renderer_searchlaser(lzs_renderer, x1, y1);
+		lzs_renderer_searchsphero(lzs_renderer, x1, y1);
 	}
 }
 
@@ -134,7 +135,7 @@ JNIEXPORT void JNICALL Java_com_jeffboody_LaserShark_LaserShark_NativeTouchTwo(J
 	// TODO - match virtual screen with physical screen
 	if(lzs_renderer)
 	{
-		lzs_renderer_searchsphero(lzs_renderer, x1, y1, x2, y2);
+		lzs_renderer_calibratesphero(lzs_renderer, x1, y1, x2, y2);
 	}
 }
 
@@ -142,11 +143,6 @@ JNIEXPORT void JNICALL Java_com_jeffboody_LaserShark_LaserShark_NativeGyroEvent(
 {
 	assert(env);
 	LOGD("debug v1=%f, v2=%f, v3=%f, dt=%f", v1, v2, v3, dt);
-
-	if(lzs_renderer)
-	{
-		lzs_renderer_phonegyro(lzs_renderer, v1, v2, v3, dt);
-	}
 }
 
 JNIEXPORT void JNICALL Java_com_jeffboody_LaserShark_LaserShark_NativeSpheroOrientation(JNIEnv* env, jobject obj, jfloat pitch, jfloat roll, jfloat yaw)

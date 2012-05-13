@@ -35,11 +35,13 @@
 * private                                                  *
 ***********************************************************/
 
-#define SCREEN_W 800.0f
-#define SCREEN_H 480.0f
+#define SCREEN_W  800.0f
+#define SCREEN_H  480.0f
+#define SCREEN_CX 400.0f
+#define SCREEN_CY 240.0f
 
-#define BALL_RADIUS  64.0f
-#define LASER_RADIUS 64.0f
+#define RADIUS_BALL  96.0f
+#define RADIUS_CROSS 24.0f
 
 // tangent derivitives
 static float SOBEL_X[] =
@@ -127,30 +129,18 @@ lzs_renderer_t* lzs_renderer_new(const char* font)
 	self->sphero_heading        = 0.0f;
 	self->sphero_heading_offset = 0.0f;
 	self->sphero_goal           = 0.0f;
-	self->laser_x               = 400.0f;
-	self->laser_y               = 240.0f;
-	self->laser_X               = 0.0f;
-	self->laser_Y               = 0.0f;
 	self->phone_heading         = 0.0f;
 	self->phone_slope           = 0.0f;
 	self->phone_height          = 5.0f;
 
-	a3d_mat4f_identity(&self->phone_gyro);
-
 	// allocate the buffer(s)
-	GLint bsize         = 2 * ((int) BALL_RADIUS);
-	GLint lsize         = 2 * ((int) LASER_RADIUS);
+	GLint bsize         = 2 * ((int) RADIUS_BALL);
 	GLint format        = TEXGZ_BGRA;
 	GLint type          = GL_UNSIGNED_BYTE;
 	self->sphero_buffer = texgz_tex_new(bsize, bsize, bsize, bsize, type, format, NULL);
 	if(self->sphero_buffer == NULL)
 	{
 		goto fail_sphero;
-	}
-	self->laser_buffer = texgz_tex_new(lsize, lsize, lsize, lsize, type, format, NULL);
-	if(self->laser_buffer == NULL)
-	{
-		goto fail_laser;
 	}
 
 	// create the font
@@ -171,11 +161,6 @@ lzs_renderer_t* lzs_renderer_new(const char* font)
 	{
 		goto fail_string_phone;
 	}
-	self->string_laser = a3d_texstring_new(self->font, 64, 24, A3D_TEXSTRING_TOP_CENTER, 1.0f, 1.0f, 0.235f, 1.0f);
-	if(self->string_laser == NULL)
-	{
-		goto fail_string_laser;
-	}
 
 	glGenTextures(1, &self->texid);
 	glEnableClientState(GL_VERTEX_ARRAY);
@@ -186,15 +171,11 @@ lzs_renderer_t* lzs_renderer_new(const char* font)
 	return self;
 
 	// failure
-	fail_string_laser:
-		a3d_texstring_delete(&self->string_phone);
 	fail_string_phone:
 		a3d_texstring_delete(&self->string_sphero);
 	fail_string_sphero:
 		a3d_texfont_delete(&self->font);
 	fail_font:
-		texgz_tex_delete(&self->laser_buffer);
-	fail_laser:
 		texgz_tex_delete(&self->sphero_buffer);
 	fail_sphero:
 		free(self);
@@ -209,11 +190,9 @@ void lzs_renderer_delete(lzs_renderer_t** _self)
 	if(self)
 	{
 		LOGD("debug");
-		a3d_texstring_delete(&self->string_laser);
 		a3d_texstring_delete(&self->string_phone);
 		a3d_texstring_delete(&self->string_sphero);
 		a3d_texfont_delete(&self->font);
-		texgz_tex_delete(&self->laser_buffer);
 		texgz_tex_delete(&self->sphero_buffer);
 		glBindTexture(GL_TEXTURE_EXTERNAL_OES, 0);
 		glDeleteTextures(1, &self->texid);
@@ -256,9 +235,27 @@ void lzs_renderer_drawbox(float top, float left, float bottom, float right, floa
 	glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
 }
 
+void lzs_renderer_crosshair(float top, float left, float bottom, float right, float r, float g, float b)
+{
+	LOGD("top=%f, left=%f, bottom=%f, right=%f, r=%f, g=%f, b=%f", top, left, bottom, right, r, g, b);
+
+	BOX[0]  = left + (right - left) / 2.0f;
+	BOX[1]  = top;
+	BOX[3]  = left + (right - left) / 2.0f;
+	BOX[4]  = bottom;
+	BOX[6]  = left;
+	BOX[7]  = top + (bottom - top) / 2.0f;
+	BOX[9]  = right;
+	BOX[10] = top + (bottom - top) / 2.0f;
+
+	glColor4f(r, g, b, 1.0f);
+	glVertexPointer(3, GL_FLOAT, 0, BOX);
+	glDrawArrays(GL_LINES, 0, 4);
+	glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+}
+
 void limit_position(float r, float* x, float* y)
 {
-	LOGD("pre: x=%f, y=%f", *x, *y);
 	// limit search region to screen
 	if(*x - r < 0.0f)
 	{
@@ -276,32 +273,24 @@ void limit_position(float r, float* x, float* y)
 	{
 		*y = SCREEN_H - r - 1;
 	}
-	LOGD("post: x=%f, y=%f", *x, *y);
 }
 
 static void compute_position(lzs_renderer_t* self, float x, float y, float* X, float* Y)
 {
-	float h    = self->phone_height;
-//self->phone_heading = 0.0f;
-//self->phone_slope = 45.0f;
-	float ph   = self->phone_heading * M_PI / 180.0f;
-	float ps   = self->phone_slope   * M_PI / 180.0f;
-	//float phyp = h * tanf(ps);     // hypotenuse
-	//float pX   = phyp * cosf(ph);  // X
-	//float pY   = phyp * sinf(ph);  // Y
+	assert(self);
 
-	float halfw  = SCREEN_W / 2.0f;
-	float halfh  = SCREEN_H / 2.0f;
+	float h      = self->phone_height;
+	float ph     = self->phone_heading * M_PI / 180.0f;
+	float ps     = self->phone_slope   * M_PI / 180.0f;
 	float scalew = 27.7f * M_PI / 180.0f;
 	float scaleh = 19.0f * M_PI / 180.0f;
-	float aph    = ph + scalew * (x - halfw) / halfw;
-	float aps    = ps - scaleh * (y - halfh) / halfh;
+	float aph    = ph + scalew * (x - SCREEN_CX) / SCREEN_CX;
+	float aps    = ps - scaleh * (y - SCREEN_CY) / SCREEN_CY;
 	float aphyp  = h * tanf(aps);     // hypotenuse
-
-	float apX = aphyp * sinf(aph);  // X
-	float apY = aphyp * cosf(aph);  // Y
-	*X = apX;
-	*Y = apY;
+	float apX    = aphyp * sinf(aph);  // X
+	float apY    = aphyp * cosf(aph);  // Y
+	*X           = apX;
+	*Y           = apY;
 
 	LOGD("x=%f, y=%f, apX=%f, apY=%f", x, y, apX, apY);
 }
@@ -342,11 +331,8 @@ void lzs_renderer_draw(lzs_renderer_t* self)
 		// TODO - check for texgz errors
 
 		texgz_tex_t* b = self->sphero_buffer;
-		glReadPixels(self->sphero_x - BALL_RADIUS, (SCREEN_H - self->sphero_y - 1) - BALL_RADIUS,
+		glReadPixels(self->sphero_x - RADIUS_BALL, (SCREEN_H - self->sphero_y - 1) - RADIUS_BALL,
 		             b->width, b->height, b->format, b->type, (void*) b->pixels);
-		texgz_tex_t* l = self->laser_buffer;
-		glReadPixels(self->laser_x - LASER_RADIUS, (SCREEN_H - self->laser_y - 1) - LASER_RADIUS,
-		             l->width, l->height, l->format, l->type, (void*) l->pixels);
 
 		// process sphero
 		texgz_tex_t* bg  = texgz_tex_convertcopy(b, TEXGZ_FLOAT, TEXGZ_LUMINANCE);
@@ -398,101 +384,60 @@ void lzs_renderer_draw(lzs_renderer_t* self)
 			//texgz_tex_export(bg,  "/sdcard/laser-shark/sphero-peak.texgz");
 		}
 
-		// process laser
-		texgz_tex_t* lg = texgz_tex_convertcopy(l, TEXGZ_FLOAT, TEXGZ_LUMINANCE);
-		texgz_tex_t* lp = texgz_tex_convolvecopy(lg, PEAK, 5, 0);
-		//texgz_tex_export(l, "/sdcard/laser-shark/laser.texgz");
-		//texgz_tex_export(lg,  "/sdcard/laser-shark/laser-gray.texgz");
-		//texgz_tex_export(lp,  "/sdcard/laser-shark/laser-peak.texgz");
-
-		// compute laser peak
-		{
-			int    x;
-			int    y;
-			int    peak_x  = 0;
-			int    peak_y  = 0;
-			float  peak    = 0.0f;
-			float* fpixels = (float*) lp->pixels;
-			for(x = 0; x < lp->width; ++x)
-			{
-				for(y = 0; y < lp->height; ++y)
-				{
-					int idx  = lp->width*y + x;
-					if(fpixels[idx] > peak)
-					{
-						peak_x = x;
-						peak_y = y;
-						peak   = fpixels[idx];
-					}
-				}
-			}
-
-			// move laser center to match peak
-			if(peak >= 0.5f)
-			{
-				self->laser_x += (float) peak_x - (float) l->width / 2.0f;
-				self->laser_y -= (float) peak_y - (float) l->height / 2.0f;
-			}
-			else
-			{
-				speed = 0.0f;
-			}
-		}
-
 		texgz_tex_delete(&bg);
 		texgz_tex_delete(&bsx);
 		texgz_tex_delete(&bsy);
-		texgz_tex_delete(&lg);
-		texgz_tex_delete(&lp);
 	}
 	else
 	{
 		LOGE("unsupported format=0x%X, type=0x%X", format, type);
 	}
 
-	// compute laser X, Y
-	compute_position(self, self->laser_x, self->laser_y, &self->laser_X, &self->laser_Y);
+	// compute phone X, Y center
+	compute_position(self, SCREEN_CX, SCREEN_CY, &self->phone_X, &self->phone_Y);
+	speed = 0.4f;
 
 	// compute sphero X, Y
 	compute_position(self, self->sphero_x, self->sphero_y, &self->sphero_X, &self->sphero_Y);
 
 	// compute goal
+	if(speed > 0.0f)
 	{
-		float dx          = self->laser_X - self->sphero_X;
-		float dy          = self->laser_Y - self->sphero_Y;
-		float a           = fix_angle(atan2f(dx, dy) * 180.0f / M_PI);
-		//self->sphero_goal = fix_angle(self->sphero_heading + a);
-		self->sphero_goal = a;
-		//LOGI("a=%f, goal=%f", a, self->sphero_goal);
-
+		float dx           = self->phone_X - self->sphero_X;
+		float dy           = self->phone_Y - self->sphero_Y;
+		float a            = fix_angle(atan2f(dx, dy) * 180.0f / M_PI);
+		self->sphero_goal  = a;
 		self->sphero_speed = speed;
 	}
-
-	// draw laser search box
+	else
 	{
-		float x = self->laser_x;
-		float y = self->laser_y;
-		float r = LASER_RADIUS;
+		self->sphero_goal = 0.0f;
+		self->sphero_speed = 0.0f;
+	}
+
+	// draw camera cross-hair
+	{
+		float x = SCREEN_CX;
+		float y = SCREEN_CY;
+		float r = RADIUS_CROSS;
 		limit_position(r, &x, &y);
-		lzs_renderer_drawbox(y - r, x - r, y + r, x + r, 1.0f, 0.0f, 0.0f, 0);
+		lzs_renderer_crosshair(y - r, x - r, y + r, x + r, 1.0f, 0.0f, 0.0f);
 	}
 
 	// draw sphero search box
 	{
+		float r = RADIUS_BALL;
+		limit_position(r, &self->sphero_x, &self->sphero_y);
 		float x = self->sphero_x;
 		float y = self->sphero_y;
-		float r = BALL_RADIUS;
-		limit_position(r, &x, &y);
 		lzs_renderer_drawbox(y - r, x - r, y + r, x + r, 0.0f, 1.0f, 0.0f, 0);
 	}
 
 	// draw string
 	a3d_texstring_printf(self->string_sphero, "sphero: head=%i, x=%0.1f, y=%0.1f, spd=%0.2f, goal=%i", (int) fix_angle(self->sphero_heading + self->sphero_heading_offset), self->sphero_X, self->sphero_Y, self->sphero_speed, (int) fix_angle(self->sphero_goal));
-	a3d_texstring_printf(self->string_phone, "phone: heading=%i, slope=%i", (int) fix_angle(self->phone_heading), (int) fix_angle(self->phone_slope));
-	a3d_texstring_printf(self->string_laser, "laser: x=%0.1f, y=%0.1f", self->laser_X, self->laser_Y);
+	a3d_texstring_printf(self->string_phone, "phone: heading=%i, slope=%i, x=%0.1f, y=%0.1f", (int) fix_angle(self->phone_heading), (int) fix_angle(self->phone_slope), self->phone_X, self->phone_Y);
 	a3d_texstring_draw(self->string_sphero, 400.0f, 16.0f, 800, 480);
 	a3d_texstring_draw(self->string_phone,  400.0f, 16.0f + self->string_sphero->size, 800, 480);
-	a3d_texstring_draw(self->string_laser,  400.0f, 16.0f + 2.0f * self->string_sphero->size, 800, 480);
 
 	//texgz_tex_t* screen = texgz_tex_new(SCREEN_W, SCREEN_H, SCREEN_W, SCREEN_H, TEXGZ_UNSIGNED_BYTE, TEXGZ_BGRA, NULL);
 	//glReadPixels(0, 0, screen->width, screen->height, screen->format, screen->type, (void*) screen->pixels);
@@ -502,65 +447,23 @@ void lzs_renderer_draw(lzs_renderer_t* self)
 	A3D_GL_GETERROR();
 }
 
-void lzs_renderer_searchlaser(lzs_renderer_t* self, float x, float y)
+void lzs_renderer_searchsphero(lzs_renderer_t* self, float x, float y)
 {
 	assert(self);
 	LOGD("debug x=%f, y=%f", x, y);
 
-	limit_position(LASER_RADIUS, &x, &y);
-
-	self->laser_x = x;
-	self->laser_y = y;
+	limit_position(RADIUS_BALL, &x, &y);
+	self->sphero_x = x;
+	self->sphero_y = y;
 }
 
-void lzs_renderer_searchsphero(lzs_renderer_t* self, float x1, float y1, float x2, float y2)
+void lzs_renderer_calibratesphero(lzs_renderer_t* self, float x1, float y1, float x2, float y2)
 {
 	assert(self);
 	LOGD("debug x=%f, y=%f, radius=%f", x, y, radius);
 
-	// sort left-to-right and top-to-bottom
-	if(x1 > x2)
-	{
-		float x = x1;
-		x1 = x2;
-		x2 = x;
-	}
-	if(y1 > y2)
-	{
-		float y = y1;
-		y1 = y2;
-		y2 = y;
-	}
-
-	float dx = x2 - x1;
-	float dy = y2 - y1;
-	float x  = x1 + dx / 2.0f;
-	float y  = y1 + dy / 2.0f;
-
-	limit_position(BALL_RADIUS, &x, &y);
-
-	self->sphero_x = x;
-	self->sphero_y = y;
-
 	// try to adjust sphero heading to match compass
 	self->sphero_heading_offset = self->phone_heading - self->sphero_heading;
-}
-
-void lzs_renderer_phonegyro(lzs_renderer_t* self, float v1, float v2, float v3, float dt)
-{
-	assert(self);
-	LOGD("v1=%f, v2=%f, v3=%f, dt=%f", v1, v2, v3, dt);
-	//self->phone_heading -= 180.0f * (v1*dt) / M_PI;
-
-	// v1 is positive rotation about y
-	// v2 is negative rotation about x
-	// v3 is positive rotation about z
-	//float ax = 0.0f;
-	//float ay = 0.0f;
-	//float az = 0.0f;
-	//a3d_mat4f_rotate(&self->phone_gyro, 0, ax, 1.0f, 0.0f, 0.0f);
-	//a3d_mat4f_rotate(&self->phone_gyro, 0, ay, 0.0f, 1.0f, 0.0f);
-	//a3d_mat4f_rotate(&self->phone_gyro, 0, az, 0.0f, 0.0f, 1.0f);
 }
 
 void lzs_renderer_spheroorientation(lzs_renderer_t* self, float pitch, float roll, float yaw)

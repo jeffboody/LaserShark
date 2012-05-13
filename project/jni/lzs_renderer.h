@@ -48,21 +48,16 @@ typedef struct
 	float        sphero_heading_offset;
 	float        sphero_goal;
 	texgz_tex_t* sphero_buffer;
-	float        laser_x;
-	float        laser_y;
-	float        laser_X;
-	float        laser_Y;
-	texgz_tex_t* laser_buffer;
-	a3d_mat4f_t  phone_gyro;
 	float        phone_heading;
 	float        phone_slope;
 	float        phone_height;
+	float        phone_X;
+	float        phone_Y;
 
 	// string(s)
 	a3d_texfont_t*   font;
 	a3d_texstring_t* string_sphero;
 	a3d_texstring_t* string_phone;
-	a3d_texstring_t* string_laser;
 } lzs_renderer_t;
 
 lzs_renderer_t* lzs_renderer_new(const char* font);
@@ -70,9 +65,8 @@ void            lzs_renderer_delete(lzs_renderer_t** _self);
 void            lzs_renderer_resize(lzs_renderer_t* self, int w, int h);
 void            lzs_renderer_drawbox(float top, float left, float bottom, float right, float r, float g, float b, int filled);
 void            lzs_renderer_draw(lzs_renderer_t* self);
-void            lzs_renderer_searchlaser(lzs_renderer_t* self, float x, float y);
-void            lzs_renderer_searchsphero(lzs_renderer_t* self, float x1, float y1, float x2, float y2);
-void            lzs_renderer_phonegyro(lzs_renderer_t* self, float v1, float v2, float v3, float dt);
+void            lzs_renderer_searchsphero(lzs_renderer_t* self, float x, float y);
+void            lzs_renderer_calibratesphero(lzs_renderer_t* self, float x1, float y1, float x2, float y2);
 void            lzs_renderer_spheroorientation(lzs_renderer_t* self, float pitch, float roll, float yaw);
 void            lzs_renderer_phoneorientation(lzs_renderer_t* self, float pitch, float roll, float yaw);
 int             lzs_renderer_spheroheading(lzs_renderer_t* self);
