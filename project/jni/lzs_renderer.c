@@ -43,31 +43,6 @@
 #define RADIUS_BALL  96.0f
 #define RADIUS_CROSS 24.0f
 
-// tangent derivitives
-static float SOBEL_X[] =
-{
-	-1.0f / 4.0f, 0.0f, 1.0f / 4.0f,
-	-2.0f / 4.0f, 0.0f, 2.0f / 4.0f,
-	-1.0f / 4.0f, 0.0f, 1.0f / 4.0f,
-};
-
-static float SOBEL_Y[] =
-{
-	 1.0f / 4.0f,  2.0f / 4.0f,  1.0f / 4.0f,
-	        0.0f,         0.0f,         0.0f,
-	-1.0f / 4.0f, -2.0f / 4.0f, -1.0f / 4.0f,
-};
-
-// 8 + 4*4 + 2*8 + 1*8 + 0.5*4 = 50
-static float PEAK[] =
-{
-	0.5f / 50.0f, 1.0f / 50.0f, 2.0f / 50.0f, 1.0f / 50.0f, 0.5f / 50.0f,
-	1.0f / 50.0f, 2.0f / 50.0f, 4.0f / 50.0f, 2.0f / 50.0f, 1.0f / 50.0f,
-	2.0f / 50.0f, 4.0f / 50.0f, 8.0f / 50.0f, 4.0f / 50.0f, 2.0f / 50.0f,
-	1.0f / 50.0f, 2.0f / 50.0f, 4.0f / 50.0f, 2.0f / 50.0f, 1.0f / 50.0f,
-	0.5f / 50.0f, 1.0f / 50.0f, 2.0f / 50.0f, 1.0f / 50.0f, 0.5f / 50.0f,
-};
-
 static GLfloat BOX[] =
 {
 	0.0f, 0.0f, -1.0f,   // 0
@@ -136,11 +111,28 @@ lzs_renderer_t* lzs_renderer_new(const char* font)
 	// allocate the buffer(s)
 	GLint bsize         = 2 * ((int) RADIUS_BALL);
 	GLint format        = TEXGZ_BGRA;
-	GLint type          = GL_UNSIGNED_BYTE;
-	self->sphero_buffer = texgz_tex_new(bsize, bsize, bsize, bsize, type, format, NULL);
-	if(self->sphero_buffer == NULL)
+	GLint type          = TEXGZ_UNSIGNED_BYTE;
+	self->buffer_color = texgz_tex_new(bsize, bsize, bsize, bsize, type, format, NULL);
+	if(self->buffer_color == NULL)
 	{
-		goto fail_sphero;
+		goto fail_color;
+	}
+	format = TEXGZ_LUMINANCE;
+	type   = TEXGZ_FLOAT;
+	self->buffer_gray = texgz_tex_new(bsize, bsize, bsize, bsize, type, format, NULL);
+	if(self->buffer_gray == NULL)
+	{
+		goto fail_gray;
+	}
+	self->buffer_sx = texgz_tex_new(bsize, bsize, bsize, bsize, type, format, NULL);
+	if(self->buffer_sx == NULL)
+	{
+		goto fail_sx;
+	}
+	self->buffer_sy = texgz_tex_new(bsize, bsize, bsize, bsize, type, format, NULL);
+	if(self->buffer_sy == NULL)
+	{
+		goto fail_sy;
 	}
 
 	// create the font
@@ -176,8 +168,14 @@ lzs_renderer_t* lzs_renderer_new(const char* font)
 	fail_string_sphero:
 		a3d_texfont_delete(&self->font);
 	fail_font:
-		texgz_tex_delete(&self->sphero_buffer);
-	fail_sphero:
+		texgz_tex_delete(&self->buffer_sy);
+	fail_sy:
+		texgz_tex_delete(&self->buffer_sx);
+	fail_sx:
+		texgz_tex_delete(&self->buffer_gray);
+	fail_gray:
+		texgz_tex_delete(&self->buffer_color);
+	fail_color:
 		free(self);
 	return NULL;
 }
@@ -193,7 +191,10 @@ void lzs_renderer_delete(lzs_renderer_t** _self)
 		a3d_texstring_delete(&self->string_phone);
 		a3d_texstring_delete(&self->string_sphero);
 		a3d_texfont_delete(&self->font);
-		texgz_tex_delete(&self->sphero_buffer);
+		texgz_tex_delete(&self->buffer_sy);
+		texgz_tex_delete(&self->buffer_sx);
+		texgz_tex_delete(&self->buffer_gray);
+		texgz_tex_delete(&self->buffer_color);
 		glBindTexture(GL_TEXTURE_EXTERNAL_OES, 0);
 		glDeleteTextures(1, &self->texid);
 		free(self);
@@ -330,27 +331,23 @@ void lzs_renderer_draw(lzs_renderer_t* self)
 
 		// TODO - check for texgz errors
 
-		texgz_tex_t* b = self->sphero_buffer;
+		// process buffers
+		texgz_tex_t* bc  = self->buffer_color;
+		texgz_tex_t* bg  = self->buffer_gray;
+		texgz_tex_t* bsx = self->buffer_sx;
+		texgz_tex_t* bsy = self->buffer_sy;
 		glReadPixels(self->sphero_x - RADIUS_BALL, (SCREEN_H - self->sphero_y - 1) - RADIUS_BALL,
-		             b->width, b->height, b->format, b->type, (void*) b->pixels);
+		             bc->width, bc->height, bc->format, bc->type, (void*) bc->pixels);
+		texgz_tex_computegray(bc, bg);
+		texgz_tex_computeedges3x3(bg, bsx, bsy);
 
-		// process sphero
-		texgz_tex_t* bg  = texgz_tex_convertcopy(b, TEXGZ_FLOAT, TEXGZ_LUMINANCE);
-		texgz_tex_t* bsx = texgz_tex_convolvecopy(bg, SOBEL_X, 3, 0);
-		texgz_tex_t* bsy = texgz_tex_convolvecopy(bg, SOBEL_Y, 3, 0);
-		//texgz_tex_export(b,   "/sdcard/laser-shark/sphero.texgz");
-		//texgz_tex_export(bg,  "/sdcard/laser-shark/sphero-gray.texgz");
-		//texgz_tex_export(bsx, "/sdcard/laser-shark/sphero-sx.texgz");   // requires rescale
-		//texgz_tex_export(bsy, "/sdcard/laser-shark/sphero-sy.texgz");   // requires rescale
-
-		// replace bg with magnitude of bsx, bsy
+		// compute peak
 		{
 			int    x;
 			int    y;
 			int    peak_x  = 0;
 			int    peak_y  = 0;
 			float  peak    = 0.0f;
-			float* fpixels = (float*) bg->pixels;
 			float* xpixels = (float*) bsx->pixels;
 			float* ypixels = (float*) bsy->pixels;
 			for(x = 0; x < bg->width; ++x)
@@ -359,12 +356,12 @@ void lzs_renderer_draw(lzs_renderer_t* self)
 				{
 					int idx      = bg->width*y + x;
 					// compute magnitude squared
-					fpixels[idx] = xpixels[idx]*xpixels[idx] + ypixels[idx]*ypixels[idx];
-					if(fpixels[idx] > peak)
+					float magsq = xpixels[idx]*xpixels[idx] + ypixels[idx]*ypixels[idx];
+					if(magsq > peak)
 					{
 						peak_x = x;
 						peak_y = y;
-						peak   = fpixels[idx];
+						peak   = magsq;
 					}
 				}
 			}
@@ -380,13 +377,7 @@ void lzs_renderer_draw(lzs_renderer_t* self)
 			{
 				speed = 0.0f;
 			}
-
-			//texgz_tex_export(bg,  "/sdcard/laser-shark/sphero-peak.texgz");
 		}
-
-		texgz_tex_delete(&bg);
-		texgz_tex_delete(&bsx);
-		texgz_tex_delete(&bsy);
 	}
 	else
 	{

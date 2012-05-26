@@ -47,12 +47,17 @@ typedef struct
 	float        sphero_heading;
 	float        sphero_heading_offset;
 	float        sphero_goal;
-	texgz_tex_t* sphero_buffer;
 	float        phone_heading;
 	float        phone_slope;
 	float        phone_height;
 	float        phone_X;
 	float        phone_Y;
+
+	// buffers for image processing
+	texgz_tex_t* buffer_color;   // RGBA-8888 or BGRA-8888
+	texgz_tex_t* buffer_gray;    // Luminance-FLOAT
+	texgz_tex_t* buffer_sx;      // Luminance-FLOAT
+	texgz_tex_t* buffer_sy;      // Luminance-FLOAT
 
 	// string(s)
 	a3d_texfont_t*   font;
