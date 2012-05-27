@@ -41,7 +41,7 @@
 #define SCREEN_CX 400.0f
 #define SCREEN_CY 240.0f
 
-#define RADIUS_BALL  96.0f
+#define RADIUS_BALL  64.0f
 #define RADIUS_CROSS 24.0f
 
 //#define DEBUG_TIME
@@ -431,15 +431,8 @@ void lzs_renderer_draw(lzs_renderer_t* self)
 			#endif
 
 			// move sphero center to match peak
-			if(peak >= 0.15f)
-			{
-				self->sphero_x += (float) peak_x - (float) bg->width / 2.0f;
-				self->sphero_y -= (float) peak_y - (float) bg->height / 2.0f;
-			}
-			else
-			{
-				speed = 0.0f;
-			}
+			self->sphero_x += (float) peak_x - (float) bg->width / 2.0f;
+			self->sphero_y -= (float) peak_y - (float) bg->height / 2.0f;
 		}
 	}
 	else
