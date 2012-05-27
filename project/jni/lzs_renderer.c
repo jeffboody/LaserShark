@@ -44,6 +44,9 @@
 #define RADIUS_BALL  96.0f
 #define RADIUS_CROSS 24.0f
 
+//#define DEBUG_TIME
+//#define DEBUG_BUFFERS
+
 static GLfloat BOX[] =
 {
 	0.0f, 0.0f, -1.0f,   // 0
@@ -310,6 +313,15 @@ void limit_position(float r, float* x, float* y)
 	}
 }
 
+static void utime_update(const char* name, double* _t0)
+{
+	double t1 = a3d_utime();
+	#ifdef DEBUG_TIME
+	LOGI("%s dt=%lf", name, t1 - *_t0);
+	#endif
+	*_t0 = t1;
+}
+
 static void compute_position(lzs_renderer_t* self, float x, float y, float* X, float* Y)
 {
 	assert(self);
@@ -337,6 +349,8 @@ void lzs_renderer_draw(lzs_renderer_t* self)
 
 	float speed = 0.4f;
 
+	double t0 = a3d_utime();
+
 	// stretch screen to 800x480
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
@@ -353,6 +367,7 @@ void lzs_renderer_draw(lzs_renderer_t* self)
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
 	glDisable(GL_TEXTURE_EXTERNAL_OES);
+	utime_update("setup", &t0);
 
 	// capture buffers
 	GLint format = TEXGZ_BGRA;
@@ -372,8 +387,16 @@ void lzs_renderer_draw(lzs_renderer_t* self)
 		texgz_tex_t* bsy = self->buffer_sy;
 		glReadPixels(self->sphero_x - RADIUS_BALL, (SCREEN_H - self->sphero_y - 1) - RADIUS_BALL,
 		             bc->width, bc->height, bc->format, bc->type, (void*) bc->pixels);
+		#ifdef DEBUG_BUFFERS
+			texgz_tex_export(bc, "/sdcard/laser-shark/color.texgz");
+		#endif
+		utime_update("readpixels", &t0);
+
 		texgz_tex_computegray(bc, bg);
+		utime_update("computegray", &t0);
+
 		texgz_tex_computeedges3x3(bg, bsx, bsy);
+		utime_update("computeedges", &t0);
 
 		// compute peak
 		{
@@ -382,6 +405,7 @@ void lzs_renderer_draw(lzs_renderer_t* self)
 			int    peak_x  = 0;
 			int    peak_y  = 0;
 			float  peak    = 0.0f;
+			float* gpixels = (float*) bg->pixels;
 			float* xpixels = (float*) bsx->pixels;
 			float* ypixels = (float*) bsy->pixels;
 			for(x = 0; x < bg->width; ++x)
@@ -391,6 +415,7 @@ void lzs_renderer_draw(lzs_renderer_t* self)
 					int idx      = bg->width*y + x;
 					// compute magnitude squared
 					float magsq = xpixels[idx]*xpixels[idx] + ypixels[idx]*ypixels[idx];
+					gpixels[idx] = magsq;
 					if(magsq > peak)
 					{
 						peak_x = x;
@@ -400,6 +425,10 @@ void lzs_renderer_draw(lzs_renderer_t* self)
 				}
 			}
 			LOGD("peak=%f, peak_x=%i, peak_y=%i", peak, peak_x, peak_y);
+			utime_update("computepeak", &t0);
+			#ifdef DEBUG_BUFFERS
+				texgz_tex_export(bg, "/sdcard/laser-shark/peak.texgz");
+			#endif
 
 			// move sphero center to match peak
 			if(peak >= 0.15f)
@@ -424,6 +453,7 @@ void lzs_renderer_draw(lzs_renderer_t* self)
 
 	// compute sphero X, Y
 	compute_position(self, self->sphero_x, self->sphero_y, &self->sphero_X, &self->sphero_Y);
+	utime_update("computeposition", &t0);
 
 	// compute goal
 	if(speed > 0.0f)
@@ -466,6 +496,7 @@ void lzs_renderer_draw(lzs_renderer_t* self)
 	a3d_texstring_draw(self->string_sphero, 400.0f, 16.0f, 800, 480);
 	a3d_texstring_draw(self->string_phone,  400.0f, 16.0f + self->string_sphero->size, 800, 480);
 	a3d_texstring_draw(self->string_fps, (float) SCREEN_W - 16.0f, (float) SCREEN_H - 16.0f, SCREEN_W, SCREEN_H);
+	utime_update("draw", &t0);
 
 	//texgz_tex_t* screen = texgz_tex_new(SCREEN_W, SCREEN_H, SCREEN_W, SCREEN_H, TEXGZ_UNSIGNED_BYTE, TEXGZ_BGRA, NULL);
 	//glReadPixels(0, 0, screen->width, screen->height, screen->format, screen->type, (void*) screen->pixels);
