@@ -63,6 +63,11 @@ typedef struct
 	a3d_texfont_t*   font;
 	a3d_texstring_t* string_sphero;
 	a3d_texstring_t* string_phone;
+
+	// fps state
+	a3d_texstring_t* string_fps;
+	double           t0;
+	int              frames;
 } lzs_renderer_t;
 
 lzs_renderer_t* lzs_renderer_new(const char* font);

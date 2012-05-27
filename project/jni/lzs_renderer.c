@@ -27,6 +27,7 @@
 #include <assert.h>
 #include <math.h>
 #include <GLES/glext.h>
+#include "a3d/a3d_time.h"
 
 #define LOG_TAG "LaserShark"
 #include "a3d/a3d_log.h"
@@ -80,6 +81,29 @@ static float fix_angle(float angle)
 	return angle;
 }
 
+static void lzs_renderer_step(lzs_renderer_t* self)
+{
+	assert(self);
+	LOGD("debug");
+
+	double t     = a3d_utime();
+	double dt0   = t - self->t0;
+	++self->frames;
+
+	// don't update fps every frame
+	if(dt0 >= 1.0 * A3D_USEC)
+	{
+		double seconds = dt0 / A3D_USEC;
+		double fps     = (double) self->frames / seconds;
+
+		// LOGI("%i frames in %.2lf seconds = %.2lf FPS", self->frames, seconds, fps);
+		a3d_texstring_printf(self->string_fps, "%i fps", (int) fps);
+
+		self->t0     = t;
+		self->frames = 0;
+	}
+}
+
 /***********************************************************
 * public                                                   *
 ***********************************************************/
@@ -107,6 +131,8 @@ lzs_renderer_t* lzs_renderer_new(const char* font)
 	self->phone_heading         = 0.0f;
 	self->phone_slope           = 0.0f;
 	self->phone_height          = 5.0f;
+	self->t0                    = a3d_utime();
+	self->frames                = 0;
 
 	// allocate the buffer(s)
 	GLint bsize         = 2 * ((int) RADIUS_BALL);
@@ -153,6 +179,11 @@ lzs_renderer_t* lzs_renderer_new(const char* font)
 	{
 		goto fail_string_phone;
 	}
+	self->string_fps = a3d_texstring_new(self->font, 16, 24, A3D_TEXSTRING_BOTTOM_RIGHT, 1.0f, 1.0f, 0.235f, 1.0f);
+	if(self->string_fps == NULL)
+	{
+		goto fail_string_fps;
+	}
 
 	glGenTextures(1, &self->texid);
 	glEnableClientState(GL_VERTEX_ARRAY);
@@ -163,6 +194,8 @@ lzs_renderer_t* lzs_renderer_new(const char* font)
 	return self;
 
 	// failure
+	fail_string_fps:
+		a3d_texstring_delete(&self->string_phone);
 	fail_string_phone:
 		a3d_texstring_delete(&self->string_sphero);
 	fail_string_sphero:
@@ -188,6 +221,7 @@ void lzs_renderer_delete(lzs_renderer_t** _self)
 	if(self)
 	{
 		LOGD("debug");
+		a3d_texstring_delete(&self->string_fps);
 		a3d_texstring_delete(&self->string_phone);
 		a3d_texstring_delete(&self->string_sphero);
 		a3d_texfont_delete(&self->font);
@@ -424,11 +458,14 @@ void lzs_renderer_draw(lzs_renderer_t* self)
 		lzs_renderer_drawbox(y - r, x - r, y + r, x + r, 0.0f, 1.0f, 0.0f, 0);
 	}
 
+	lzs_renderer_step(self);
+
 	// draw string
 	a3d_texstring_printf(self->string_sphero, "sphero: head=%i, x=%0.1f, y=%0.1f, spd=%0.2f, goal=%i", (int) fix_angle(self->sphero_heading + self->sphero_heading_offset), self->sphero_X, self->sphero_Y, self->sphero_speed, (int) fix_angle(self->sphero_goal));
 	a3d_texstring_printf(self->string_phone, "phone: heading=%i, slope=%i, x=%0.1f, y=%0.1f", (int) fix_angle(self->phone_heading), (int) fix_angle(self->phone_slope), self->phone_X, self->phone_Y);
 	a3d_texstring_draw(self->string_sphero, 400.0f, 16.0f, 800, 480);
 	a3d_texstring_draw(self->string_phone,  400.0f, 16.0f + self->string_sphero->size, 800, 480);
+	a3d_texstring_draw(self->string_fps, (float) SCREEN_W - 16.0f, (float) SCREEN_H - 16.0f, SCREEN_W, SCREEN_H);
 
 	//texgz_tex_t* screen = texgz_tex_new(SCREEN_W, SCREEN_H, SCREEN_W, SCREEN_H, TEXGZ_UNSIGNED_BYTE, TEXGZ_BGRA, NULL);
 	//glReadPixels(0, 0, screen->width, screen->height, screen->format, screen->type, (void*) screen->pixels);
