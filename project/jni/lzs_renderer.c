@@ -454,7 +454,7 @@ void lzs_renderer_draw(lzs_renderer_t* self)
 		float dx           = self->phone_X - self->sphero_X;
 		float dy           = self->phone_Y - self->sphero_Y;
 		float a            = fix_angle(atan2f(dx, dy) * 180.0f / M_PI);
-		self->sphero_goal  = a;
+		self->sphero_goal  = a - self->sphero_heading_offset;
 		self->sphero_speed = speed;
 	}
 	else
