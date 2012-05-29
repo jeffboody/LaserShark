@@ -530,7 +530,7 @@ void lzs_renderer_phoneorientation(lzs_renderer_t* self, float pitch, float roll
 	assert(self);
 	LOGD("pitch=%f, roll=%f, yaw=%f", pitch, roll, yaw);
 	self->phone_heading = yaw;
-	self->phone_slope   = roll;
+	self->phone_slope   = 360.0f - roll;
 }
 
 int lzs_renderer_spheroheading(lzs_renderer_t* self)

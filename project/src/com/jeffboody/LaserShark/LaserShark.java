@@ -58,10 +58,19 @@ public class LaserShark extends Activity implements SensorEventListener
 	private PowerManager.WakeLock mWakeLock;
 
 	// sensors
+	final float RAD2DEG = 180.0F / 3.14159F;
 	final float NS2S = 1.0f / 1000000000.0f;
-	private Sensor mOrientation;
+	private Sensor mAccelerometer;
+	private Sensor mMagnetic;
 	private Sensor mGyro;
 	private long   mGyroTimestamp;
+	private float[] mAccelerometerValues = new float[3];
+	private float[] mMagneticValues      = new float[3];
+	private float[] mRotation            = new float[16];
+	private float[] mInclination         = new float[16];
+	private float[] mOrientation         = new float[3];
+	private boolean mAccelerometerReady  = false;
+	private boolean mMagneticReady       = false;
 
 	// calibration
 	private boolean mIsCalibrated = false;
@@ -273,6 +282,9 @@ public class LaserShark extends Activity implements SensorEventListener
 		Surface.ResumeRenderer();
 		mWakeLock.acquire();
 
+		mAccelerometerReady = false;
+		mMagneticReady      = false;
+
 		SensorManager sm = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
 		mGyro = sm.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
 		if(mGyro != null)
@@ -283,11 +295,19 @@ public class LaserShark extends Activity implements SensorEventListener
 		}
 		mGyroTimestamp = 0L;
 
-		mOrientation = sm.getDefaultSensor(Sensor.TYPE_ORIENTATION);
-		if(mOrientation != null)
+		mMagnetic = sm.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
+		if(mMagnetic != null)
 		{
 			sm.registerListener(this,
-			                    mOrientation,
+			                    mMagnetic,
+			                    SensorManager.SENSOR_DELAY_GAME);
+		}
+
+		mAccelerometer = sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+		if(mAccelerometer != null)
+		{
+			sm.registerListener(this,
+			                    mAccelerometer,
 			                    SensorManager.SENSOR_DELAY_GAME);
 		}
 	}
@@ -295,13 +315,14 @@ public class LaserShark extends Activity implements SensorEventListener
 	@Override
 	protected void onPause()
 	{
-		if((mGyro != null) || (mOrientation != null))
+		if((mGyro != null) || (mMagnetic != null) || (mAccelerometer != null))
 		{
 			SensorManager sm = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
 			sm = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
 			sm.unregisterListener(this);
 			mGyro = null;
-			mOrientation = null;
+			mAccelerometer = null;
+			mMagnetic = null;
 		}
 
 		mWakeLock.release();
@@ -394,11 +415,28 @@ public class LaserShark extends Activity implements SensorEventListener
 			}
 			mGyroTimestamp = event.timestamp;
 		}
-		else if(event.sensor.getType() == Sensor.TYPE_ORIENTATION)
+		else if(event.sensor.getType() == Sensor.TYPE_ACCELEROMETER)
 		{
-			float azmuth = event.values[0];
-			float pitch  = event.values[1];
-			float roll   = event.values[2];
+			mAccelerometerValues[0] = event.values[0];
+			mAccelerometerValues[1] = event.values[1];
+			mAccelerometerValues[2] = event.values[2];
+			mAccelerometerReady = true;
+		}
+		else if(event.sensor.getType() == Sensor.TYPE_MAGNETIC_FIELD)
+		{
+			mMagneticValues[0] = event.values[0];
+			mMagneticValues[1] = event.values[1];
+			mMagneticValues[2] = event.values[2];
+			mMagneticReady = true;
+		}
+
+		if(mAccelerometerReady && mMagneticReady)
+		{
+			SensorManager.getRotationMatrix(mRotation, mInclination, mAccelerometerValues, mMagneticValues);
+			SensorManager.getOrientation(mRotation, mOrientation);
+			float azmuth = mOrientation[0] * RAD2DEG;
+			float pitch  = mOrientation[1] * RAD2DEG;
+			float roll   = mOrientation[2] * RAD2DEG;
 			NativePhoneOrientation(pitch, roll, azmuth);
 		}
 	}
