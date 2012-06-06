@@ -170,6 +170,8 @@ public class LaserShark extends Activity implements SensorEventListener
 	@Override
 	protected void onStop()
 	{
+		// rotate "normal"
+		RotationRateCommand.sendCommand(mRobot, 0.6f);
 
 		// turn stabilization back on
 		//StabilizationCommand.sendCommand(mRobot, true);
@@ -223,6 +225,9 @@ public class LaserShark extends Activity implements SensorEventListener
 
 			// turn stabilization off
 			//StabilizationCommand.sendCommand(mRobot, false);
+
+			// rotate faster
+			RotationRateCommand.sendCommand(mRobot, 0.9f);
 
 			// turn data streaming on for the specific types we want
 			//
