@@ -44,6 +44,9 @@
 #define RADIUS_BALL  64.0f
 #define RADIUS_CROSS 24.0f
 
+#define SPEED_MIN 0.4f
+#define SPEED_MAX 0.7f
+
 //#define DEBUG_TIME
 //#define DEBUG_BUFFERS
 
@@ -347,8 +350,6 @@ void lzs_renderer_draw(lzs_renderer_t* self)
 	assert(self);
 	LOGD("debug");
 
-	float speed = 0.4f;
-
 	double t0 = a3d_utime();
 
 	// stretch screen to 800x480
@@ -442,25 +443,28 @@ void lzs_renderer_draw(lzs_renderer_t* self)
 
 	// compute phone X, Y center
 	compute_position(self, SCREEN_CX, SCREEN_CY, &self->phone_X, &self->phone_Y);
-	speed = 0.4f;
 
 	// compute sphero X, Y
 	compute_position(self, self->sphero_x, self->sphero_y, &self->sphero_X, &self->sphero_Y);
 	utime_update("computeposition", &t0);
 
 	// compute goal
-	if(speed > 0.0f)
+	float dx           = self->phone_X - self->sphero_X;
+	float dy           = self->phone_Y - self->sphero_Y;
+	float a            = fix_angle(atan2f(dx, dy) * 180.0f / M_PI);
+	self->sphero_goal  = a - self->sphero_heading_offset;
+
+	// compute speed
+	float dotp = cosf((a - self->sphero_heading) * M_PI / 180.0f);
+	if(dotp > 0.0f)
 	{
-		float dx           = self->phone_X - self->sphero_X;
-		float dy           = self->phone_Y - self->sphero_Y;
-		float a            = fix_angle(atan2f(dx, dy) * 180.0f / M_PI);
-		self->sphero_goal  = a - self->sphero_heading_offset;
-		self->sphero_speed = speed;
+		// linearly interpolate speed based on the turning angle
+		self->sphero_speed = SPEED_MAX*dotp + SPEED_MIN*(1.0f - dotp);
 	}
 	else
 	{
-		self->sphero_goal = 0.0f;
-		self->sphero_speed = 0.0f;
+		// go slow to turn around
+		self->sphero_speed = SPEED_MIN;
 	}
 
 	// draw camera cross-hair
