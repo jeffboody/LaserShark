@@ -1,15 +1,13 @@
-Laser Shark Readme
+About
+=====
 
-[About]
+Laser Shark is an Android app for controlling a Sphero robotic ball
+using the camera.
 
-	Laser Shark is an Android app for controlling a Sphero robotic ball
-	using the camera.
+Send questions or comments to Jeff Boody at jeffboody@gmail.com
 
-[Feedback]
-
-	Send questions or comments to Jeff Boody at jeffboody@gmail.com
-
-[License]
+License
+=======
 
 	Copyright (c) 2012 Jeff Boody
 
